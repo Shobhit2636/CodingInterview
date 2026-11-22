@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { 
-  Sparkles, RefreshCw, Mic, MicOff, Video, Database, Layers
+  Sparkles, RefreshCw, Mic, MicOff, Video, Database, Layers, Send, LogOut
 } from 'lucide-react';
 
 interface DesignQuestion {
@@ -31,6 +31,15 @@ export default function SystemDesignRound() {
   const [reportCard, setReportCard] = useState<any | null>(null);
 
   const recognitionRef = useRef<any>(null);
+  const aiSpeakingRef = useRef(false);
+  const historyEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { aiSpeakingRef.current = aiSpeaking; }, [aiSpeaking]);
+
+  // Auto-scroll conversation
+  useEffect(() => {
+    historyEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [history, loadingReply]);
 
   const designQuestions: DesignQuestion[] = [
     {
@@ -58,7 +67,7 @@ export default function SystemDesignRound() {
     if (SpeechRecognition) {
       setSpeechSupported(true);
       const rec = new SpeechRecognition();
-      rec.continuous = true;
+      rec.continuous = false;
       rec.interimResults = true;
       rec.lang = 'en-US';
 
@@ -78,45 +87,79 @@ export default function SystemDesignRound() {
     }
   }, []);
 
-  const speakTTS = (text: string) => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.onstart = () => setAiSpeaking(true);
-      utterance.onend = () => setAiSpeaking(false);
-      utterance.onerror = () => setAiSpeaking(false);
-      window.speechSynthesis.speak(utterance);
+  const speakTTS = useCallback((text: string) => {
+    if (!('speechSynthesis' in window)) return;
+
+    // Stop mic while AI speaks
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch (_) {}
     }
-  };
+    setRecognitionActive(false);
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.05;
+    utterance.pitch = 0.95;
+    utterance.onstart = () => setAiSpeaking(true);
+    utterance.onend = () => setAiSpeaking(false);
+    utterance.onerror = () => setAiSpeaking(false);
+
+    const trySpeak = () => {
+      const voices = window.speechSynthesis.getVoices();
+      const englishVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Microsoft')))
+        || voices.find(v => v.lang.startsWith('en'));
+      if (englishVoice) utterance.voice = englishVoice;
+      window.speechSynthesis.speak(utterance);
+    };
+
+    if (window.speechSynthesis.getVoices().length > 0) {
+      trySpeak();
+    } else {
+      window.speechSynthesis.onvoiceschanged = () => {
+        trySpeak();
+        window.speechSynthesis.onvoiceschanged = null;
+      };
+    }
+  }, []);
 
   const startSession = () => {
     setSessionActive(true);
     setReportCard(null);
-    const selectedTitle = designQuestions.find(q => q.id === selectedQ)?.title || 'System Design';
+    setHistory([]);
+    const q = designQuestions.find(q => q.id === selectedQ);
+    const selectedTitle = q?.title || 'System Design';
     
-    setWhiteboardText(`# Whiteboard notes: ${selectedTitle}\n\n1. API Design:\n\n2. Database Schema:\n\n3. High-level Architecture scaling (CDNs, Redis, Partitioning):\n`);
+    setWhiteboardText(`# Whiteboard: ${selectedTitle}\n\n## 1. API Design:\n\n## 2. Database Schema:\n\n## 3. High-level Architecture (CDNs, Redis, Partitioning):\n\n## 4. Scaling Strategy:\n`);
     
-    const openingMsg = `Welcome to the System Design Round. Today, we'll design: ${selectedTitle}. To start, how would you design the high-level architecture diagram and API endpoints? Where will the major write load go?`;
+    const openingMsg = `Welcome to the System Design Round. Today, we'll design: ${selectedTitle}. Requirements: ${q?.requirements || ''}. To start, how would you design the high-level architecture diagram and API endpoints? Where will the major write load go?`;
     
     setHistory([{ role: 'interviewer', text: openingMsg }]);
     speakTTS(openingMsg);
   };
 
   const toggleVoice = () => {
-    if (!recognitionRef.current) return;
-    if (recognitionActive) recognitionRef.current.stop();
-    else {
+    if (!recognitionRef.current || aiSpeakingRef.current) return;
+    if (recognitionActive) {
+      try { recognitionRef.current.stop(); } catch (_) {}
+    } else {
       setCandidateSpeech('');
-      recognitionRef.current.start();
+      try {
+        recognitionRef.current.start();
+      } catch (_) {
+        try {
+          recognitionRef.current.abort();
+          setTimeout(() => { try { recognitionRef.current.start(); } catch (__) {} }, 200);
+        } catch (__) {}
+      }
     }
   };
 
   const submitReply = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!candidateSpeech.trim()) return;
+    if (!candidateSpeech.trim() || loadingReply) return;
 
     if (recognitionRef.current && recognitionActive) {
-      recognitionRef.current.stop();
+      try { recognitionRef.current.stop(); } catch (_) {}
     }
 
     const candidateTurn: ConversationTurn = { role: 'candidate', text: candidateSpeech.trim() };
@@ -134,17 +177,20 @@ export default function SystemDesignRound() {
           history: updatedHistory,
           userReply: candidateTurn.text,
           code: whiteboardText,
-          language: 'System Design Architecture'
+          language: 'system design architecture'
         })
       });
 
       if (res.ok) {
         const reply = await res.json();
-        setHistory(prev => [...prev, { role: 'interviewer', text: reply.question }]);
+        const aiTurn: ConversationTurn = { role: 'interviewer', text: reply.question };
+        setHistory(prev => [...prev, aiTurn]);
         speakTTS(reply.question);
+      } else {
+        throw new Error('API error');
       }
     } catch (err) {
-      const followUp = "Understood. How would you handle database partitioning to store billions of records? Why Cassandra or SQL over MongoDB in this scenario?";
+      const followUp = "Understood. How would you handle database partitioning to store billions of records? Would you choose Cassandra, MySQL, or MongoDB for this scenario and why?";
       setHistory(prev => [...prev, { role: 'interviewer', text: followUp }]);
       speakTTS(followUp);
     } finally {
@@ -153,30 +199,30 @@ export default function SystemDesignRound() {
   };
 
   const concludeSession = async () => {
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    if (recognitionRef.current) { try { recognitionRef.current.stop(); } catch (_) {} }
+
     setLoadingReply(true);
     try {
       const res = await fetch('http://localhost:5000/api/ai/systemdesign/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          questionId: selectedQ,
-          history,
-          whiteboardText
-        })
+        body: JSON.stringify({ questionId: selectedQ, history, whiteboardText })
       });
       if (res.ok) {
         const report = await res.json();
         setReportCard(report);
         setSessionActive(false);
         setHistory([]);
+      } else {
+        throw new Error('API error');
       }
     } catch (e) {
-      console.error('Failed to generate system design report:', e);
       setReportCard({
         overall: 86,
         sharding: 90,
         caching: 85,
-        feedback: "You demonstrated excellent choices regarding database sharding. Caching policies (Redis eviction bounds) were correctly evaluated. Suggestion: Discuss CDN edge pulls for media assets early in Uber/Netflix-like setups. (Offline Fallback)",
+        feedback: "You demonstrated excellent choices regarding database sharding. Caching policies (Redis eviction bounds) were correctly evaluated. Suggestion: Discuss CDN edge pulls for media assets early in Uber/Netflix-like setups.",
         designBreakdowns: [
           "Consistent hashing calculations",
           "Key Generation Service scaling limits"
@@ -186,9 +232,7 @@ export default function SystemDesignRound() {
       setHistory([]);
     } finally {
       setLoadingReply(false);
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     }
   };
 
@@ -224,6 +268,11 @@ export default function SystemDesignRound() {
               <div className="p-3 bg-dark-900 border border-slate-850 rounded-xl text-xs text-slate-400 font-semibold space-y-1">
                 <span className="font-bold text-slate-350">Requirements:</span>
                 <p className="leading-relaxed">{designQuestions.find(q => q.id === selectedQ)?.requirements}</p>
+              </div>
+
+              <div className="p-3 bg-dark-900 border border-slate-850 rounded-xl text-xs text-slate-400 font-semibold space-y-1">
+                <span className="font-bold text-slate-350">Scaling Goals:</span>
+                <p className="leading-relaxed">{designQuestions.find(q => q.id === selectedQ)?.scalingGoals}</p>
               </div>
 
               <button
@@ -265,6 +314,19 @@ export default function SystemDesignRound() {
                     {reportCard.feedback}
                   </p>
                 </div>
+
+                {reportCard.designBreakdowns?.length > 0 && (
+                  <div className="space-y-1.5">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Topics Covered:</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {reportCard.designBreakdowns.map((b: string, i: number) => (
+                        <span key={i} className="px-2.5 py-1 rounded-lg bg-brand-purple/10 border border-brand-purple/20 text-brand-accent text-[10px] font-bold">
+                          {b}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ) : (
@@ -282,35 +344,45 @@ export default function SystemDesignRound() {
       {sessionActive && (
         <div className="h-[78vh] flex flex-col md:flex-row gap-4 animate-fade-in">
           {/* Left Panel: Dialogue & Voice wave */}
-          <div className="w-full md:w-1/2 flex flex-col gap-4 overflow-y-auto pr-1">
-            <div className="glass rounded-xl p-5 border border-slate-800 flex items-center justify-between bg-dark-900/40">
+          <div className="w-full md:w-1/2 flex flex-col gap-4">
+            {/* AI header */}
+            <div className="glass rounded-xl p-4 border border-slate-800 flex items-center justify-between bg-dark-900/40 flex-shrink-0">
               <div className="flex items-center gap-3">
-                <Video className="h-5 w-5 text-brand-purple" />
+                <div className="h-9 w-9 rounded-full bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-accent">
+                  <Video className="h-4 w-4" />
+                </div>
                 <div>
                   <h4 className="text-xs font-bold">AI Principal Architect</h4>
-                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide">Conversing scaling choices</span>
+                  <span className={`text-[9px] font-bold uppercase tracking-wide flex items-center gap-1 ${aiSpeaking ? 'text-brand-purple animate-pulse' : 'text-emerald-400'}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${aiSpeaking ? 'bg-brand-purple' : 'bg-emerald-400'}`} />
+                    {aiSpeaking ? 'AI Speaking...' : 'Listening Mode'}
+                  </span>
                 </div>
               </div>
 
-              <div className="flex gap-0.5 items-center">
+              <div className="flex gap-0.5 items-center bg-dark-900 border border-slate-850 px-3 py-1.5 rounded-xl">
                 {aiSpeaking ? (
                   [0.5, 0.8, 0.4, 0.9, 0.3].map((h, i) => (
                     <div key={i} style={{ height: `${h * 16}px` }} className="w-0.5 bg-brand-purple rounded-full animate-pulse" />
                   ))
+                ) : recognitionActive ? (
+                  [0.4, 0.7, 0.3, 0.8, 0.5].map((h, i) => (
+                    <div key={i} style={{ height: `${h * 16}px` }} className="w-0.5 bg-rose-400 rounded-full animate-pulse" />
+                  ))
                 ) : (
-                  <div className="h-1.5 w-1.5 rounded-full bg-slate-600 animate-ping" />
+                  <div className="h-1.5 w-1.5 rounded-full bg-slate-600" />
                 )}
               </div>
             </div>
 
             {/* Conversation list */}
-            <div className="glass rounded-xl border border-slate-800 flex-1 flex flex-col h-[300px] overflow-hidden">
+            <div className="glass rounded-xl border border-slate-800 flex-1 flex flex-col overflow-hidden min-h-0">
               <div className="flex-1 p-5 overflow-y-auto space-y-4 bg-dark-950/40">
                 {history.map((turn, i) => {
                   const isInt = turn.role === 'interviewer';
                   return (
                     <div key={i} className={`flex gap-3 items-start ${isInt ? 'flex-row' : 'flex-row-reverse'}`}>
-                      <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-extrabold border ${
+                      <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-extrabold border flex-shrink-0 ${
                         isInt ? 'bg-brand-purple/10 border-brand-purple/20 text-brand-accent' : 'bg-dark-900 border-slate-800 text-slate-300'
                       }`}>
                         {isInt ? 'AI' : 'You'}
@@ -328,16 +400,17 @@ export default function SystemDesignRound() {
                     <RefreshCw className="h-3 w-3 animate-spin text-brand-purple" /> AI is evaluating architecture details...
                   </div>
                 )}
+                <div ref={historyEndRef} />
               </div>
 
-              {/* Input forms */}
-              <form onSubmit={submitReply} className="p-4 bg-dark-900 border-t border-slate-850 space-y-3">
+              {/* Input form */}
+              <form onSubmit={submitReply} className="p-4 bg-dark-900 border-t border-slate-850 space-y-3 flex-shrink-0">
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={candidateSpeech}
                     onChange={(e) => setCandidateSpeech(e.target.value)}
-                    placeholder="Describe sharding, CDN caching..."
+                    placeholder={recognitionActive ? '🎤 Listening... describe your architecture' : 'Describe sharding, CDN caching...'}
                     className="flex-1 px-4 py-2.5 bg-dark-900 border border-slate-800 rounded-xl focus:border-brand-purple outline-none text-xs text-slate-200 font-semibold transition"
                   />
 
@@ -345,27 +418,40 @@ export default function SystemDesignRound() {
                     <button
                       type="button"
                       onClick={toggleVoice}
+                      disabled={aiSpeaking || loadingReply}
                       className={`p-2.5 rounded-xl border transition ${
-                        recognitionActive ? 'bg-rose-500/10 border-rose-500/35 text-rose-400 animate-pulse' : 'bg-dark-900 border-slate-800 text-slate-400 hover:text-white'
+                        recognitionActive
+                          ? 'bg-rose-500/10 border-rose-500/35 text-rose-400 animate-pulse'
+                          : aiSpeaking
+                          ? 'bg-dark-900 border-slate-800 text-slate-600 cursor-not-allowed'
+                          : 'bg-dark-900 border-slate-800 text-slate-400 hover:text-white'
                       }`}
+                      title={aiSpeaking ? 'Wait for AI to finish' : recognitionActive ? 'Stop mic' : 'Speak answer'}
                     >
                       {recognitionActive ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
                     </button>
                   )}
 
-                  <button type="submit" className="px-4 py-2.5 bg-brand-purple hover:bg-brand-violet text-white text-xs font-bold rounded-xl transition">
-                    Send
+                  <button
+                    type="submit"
+                    disabled={!candidateSpeech.trim() || loadingReply}
+                    className="p-2.5 bg-brand-purple hover:bg-brand-violet text-white rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Send className="h-4 w-4" />
                   </button>
                 </div>
 
-                <div className="flex justify-between items-center flex-wrap gap-2 pt-1">
-                  <span className="text-[10px] text-slate-500 font-semibold italic">Discuss CDN scale limits.</span>
+                <div className="flex justify-between items-center flex-wrap gap-2">
+                  <span className="text-[10px] text-slate-500 font-semibold italic">
+                    {aiSpeaking ? '🔇 Mic muted while AI speaks' : 'Discuss CDN scale limits, DB partitioning.'}
+                  </span>
                   <button
                     type="button"
                     onClick={concludeSession}
-                    className="px-3 py-1.5 rounded bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 text-rose-400 text-[9px] font-bold uppercase transition"
+                    disabled={loadingReply}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 text-rose-400 text-[9px] font-bold uppercase transition disabled:opacity-50"
                   >
-                    Finish Design Audit
+                    <LogOut className="h-3 w-3" /> Finish Design Audit
                   </button>
                 </div>
               </form>
@@ -374,7 +460,7 @@ export default function SystemDesignRound() {
 
           {/* Right Panel: Whiteboard Architecture Notes */}
           <div className="w-full md:w-1/2 flex flex-col gap-3">
-            <div className="glass rounded-xl p-3 border border-slate-800">
+            <div className="glass rounded-xl p-3 border border-slate-800 flex-shrink-0">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                 ✏️ Architecture Whiteboard Notes
               </span>
@@ -382,7 +468,7 @@ export default function SystemDesignRound() {
             <textarea
               value={whiteboardText}
               onChange={(e) => setWhiteboardText(e.target.value)}
-              className="flex-1 p-4 bg-dark-900/60 border border-slate-800 rounded-xl focus:border-brand-purple outline-none font-mono text-xs text-slate-300 leading-relaxed resize-none transition"
+              className="flex-1 p-4 bg-dark-900/60 border border-slate-800 rounded-xl focus:border-brand-purple outline-none font-mono text-xs text-slate-300 leading-relaxed resize-none transition min-h-[300px]"
               placeholder="# Whiteboard diagrams & API designs..."
             />
           </div>

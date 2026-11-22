@@ -86,10 +86,7 @@ Open a terminal in the `backend/` folder:
 ```bash
 cd backend
 npm install
-# Create an environment configuration:
-# Copy the `.env.example` content into a new `.env` file.
-# Note: If no GEMINI_API_KEY is present, CodeAI automatically falls back
-# to an ultra-realistic Mock AI Engine so everything runs seamlessly!
+
 npm run dev
 ```
 

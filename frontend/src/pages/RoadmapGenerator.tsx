@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { 
   Target, Clock, RefreshCw, 
-  Map, ArrowRight, CheckCircle2, ListTodo
+  Map, ArrowRight, CheckCircle2, ListTodo, AlertCircle, Sparkles
 } from 'lucide-react';
 
 interface DailyPlanItem {
@@ -23,6 +23,7 @@ export default function RoadmapGenerator() {
   const [weakTopics, setWeakTopics] = useState('Dynamic Programming, Graphs');
   const [loading, setLoading] = useState(false);
   const [roadmap, setRoadmap] = useState<RoadmapResponse | null>(null);
+  const [error, setError] = useState('');
 
   // Checked roadmap tasks
   const [completedDays, setCompletedDays] = useState<Record<string, boolean>>({});
@@ -31,6 +32,7 @@ export default function RoadmapGenerator() {
     e.preventDefault();
     setLoading(true);
     setCompletedDays({});
+    setError('');
 
     try {
       const res = await fetch('http://localhost:5000/api/ai/roadmap', {
@@ -41,19 +43,27 @@ export default function RoadmapGenerator() {
 
       if (res.ok) {
         const out = await res.json();
-        setRoadmap(out);
+        // Validate response shape
+        if (out.dailyPlan && Array.isArray(out.dailyPlan) && out.dailyPlan.length > 0) {
+          setRoadmap(out);
+        } else {
+          throw new Error('Invalid roadmap response from server');
+        }
+      } else {
+        // Server returned error — use mock
+        throw new Error(`Server error: ${res.status}`);
       }
     } catch (e) {
-      // Mock Roadmap Response
+      // Always show mock roadmap so user gets value even without backend
       setRoadmap({
         weakTopics: ["Dynamic Programming (Knapsack)", "Graph Algorithms (BFS/DFS)", "Sliding Window"],
-        strongTopics: ["Arrays & Arrays Manipulations", "Linked Lists", "Hash Maps & Sorting"],
+        strongTopics: ["Arrays & Array Manipulations", "Linked Lists", "Hash Maps & Sorting"],
         dailyPlan: [
           { day: "Day 1", focus: "Sliding Window Foundations", time: "1.5 hours", task: "Solve Longest Substring Without Repeating Characters on the questions tab." },
           { day: "Day 2", focus: "Two-pointer Optimizations", time: "1 hour", task: "Solve Container With Most Water, understand how to move left/right markers." },
           { day: "Day 3", focus: "Graph Representation & BFS", time: "2 hours", task: "Solve Course Schedule in our question bank, master topological sort." },
           { day: "Day 4", focus: "Dynamic Programming: 1D Array", time: "2.5 hours", task: "Review Fibonacci states and climb stairs. Dry run overlap calls." },
-          { day: "Day 5", focus: "Dynamic Programming: 2D grids", time: "2 hours", task: "Solve Unique Paths, build visual grid table logic." },
+          { day: "Day 5", focus: "Dynamic Programming: 2D Grids", time: "2 hours", task: "Solve Unique Paths, build visual grid table logic." },
           { day: "Day 6", focus: "Mock Coding Assessment", time: "3 hours", task: "Create an interview room and solve two medium questions with strict 45 min timers." },
           { day: "Day 7", focus: "AI Interviewer Assessment", time: "1.5 hours", task: "Start a Complete Voice Interview round on Course Schedule in the AI interviewer tab." }
         ]
@@ -69,6 +79,9 @@ export default function RoadmapGenerator() {
       [day]: !prev[day]
     }));
   };
+
+  const completedCount = Object.values(completedDays).filter(Boolean).length;
+  const totalDays = roadmap?.dailyPlan.length || 0;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -88,6 +101,13 @@ export default function RoadmapGenerator() {
               Our career copilot maps your target role and company constraints against your weak subjects to generate a targeted prep plan.
             </p>
           </div>
+
+          {error && (
+            <div className="flex items-start gap-2 p-3 bg-amber-500/10 border border-amber-500/25 rounded-xl text-amber-400 text-xs font-semibold">
+              <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
 
           <form onSubmit={handleGenerate} className="space-y-4">
             <div className="space-y-1">
@@ -110,7 +130,7 @@ export default function RoadmapGenerator() {
                 value={weakTopics}
                 onChange={(e) => setWeakTopics(e.target.value)}
                 placeholder="Dynamic Programming, Graphs, Arrays"
-                className="w-full px-4 py-2.5 bg-dark-900 border border-slate-800 rounded-xl focus:border-brand-purple outline-none text-slate-355 text-xs font-semibold transition"
+                className="w-full px-4 py-2.5 bg-dark-900 border border-slate-800 rounded-xl focus:border-brand-purple outline-none text-slate-350 text-xs font-semibold transition"
               />
             </div>
 
@@ -127,19 +147,30 @@ export default function RoadmapGenerator() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-brand-violet to-brand-indigo hover:from-brand-purple hover:to-brand-violet text-white font-bold transition transform hover:scale-[1.02] shadow-lg shadow-brand-violet/20 disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-brand-violet to-brand-indigo hover:from-brand-purple hover:to-brand-violet text-white font-bold transition transform hover:scale-[1.02] shadow-lg shadow-brand-violet/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
               {loading ? (
-                <>
-                  <RefreshCw className="h-4 w-4 animate-spin" /> Synthesizing schedule...
-                </>
+                <><RefreshCw className="h-4 w-4 animate-spin" /> Synthesizing schedule...</>
               ) : (
-                <>
-                  Build Prep Roadmap <ArrowRight className="h-4 w-4" />
-                </>
+                <>Build Prep Roadmap <ArrowRight className="h-4 w-4" /></>
               )}
             </button>
           </form>
+        </div>
+      )}
+
+      {/* Loading skeleton */}
+      {loading && !roadmap && (
+        <div className="max-w-xl mx-auto space-y-3 mt-4">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="glass p-4 rounded-xl border border-slate-800 animate-pulse flex gap-4">
+              <div className="h-5 w-5 rounded-full bg-slate-800 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3 bg-slate-800 rounded w-1/2" />
+                <div className="h-2 bg-slate-800 rounded w-3/4" />
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -147,7 +178,6 @@ export default function RoadmapGenerator() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
           {/* Left panel: Strengths & Weaknesses analysis */}
           <div className="space-y-4 lg:col-span-1">
-            {/* Action card */}
             <div className="glass p-5 rounded-2xl border border-slate-800 space-y-4">
               <h3 className="font-extrabold text-sm text-slate-100 flex items-center gap-1.5 border-b border-slate-850 pb-2">
                 <Target className="h-4 w-4 text-brand-purple" /> Target: {targetCompany}
@@ -177,8 +207,27 @@ export default function RoadmapGenerator() {
                 </div>
               </div>
 
+              {/* Progress tracker */}
+              <div className="space-y-2 pt-2 border-t border-slate-850">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Progress</span>
+                  <span className="text-[10px] font-bold text-brand-accent">{completedCount}/{totalDays} days</span>
+                </div>
+                <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-brand-violet to-emerald-500 rounded-full transition-all duration-500"
+                    style={{ width: `${totalDays > 0 ? (completedCount / totalDays) * 100 : 0}%` }}
+                  />
+                </div>
+                {completedCount === totalDays && totalDays > 0 && (
+                  <div className="flex items-center gap-1.5 text-emerald-400 text-[10px] font-bold">
+                    <Sparkles className="h-3.5 w-3.5" /> All days completed! 🎉
+                  </div>
+                )}
+              </div>
+
               <button
-                onClick={() => setRoadmap(null)}
+                onClick={() => { setRoadmap(null); setCompletedDays({}); setError(''); }}
                 className="w-full py-2 bg-dark-900 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-white text-xs font-bold rounded-xl transition"
               >
                 Reset & Build New

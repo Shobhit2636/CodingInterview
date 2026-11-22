@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { 
   Mic, MicOff, RefreshCw, Award, 
-  Sparkles, Smile, ArrowRight, AlertCircle
+  Sparkles, Smile, ArrowRight, AlertCircle, Send
 } from 'lucide-react';
 
 interface BehavioralTurn {
@@ -19,19 +19,64 @@ export default function BehavioralMock() {
   const [loading, setLoading] = useState(false);
 
   // Voice States
+  const [aiSpeaking, setAiSpeaking] = useState(false);
   const [recognitionActive, setRecognitionActive] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   
   const [reportCard, setReportCard] = useState<any | null>(null);
 
   const recognitionRef = useRef<any>(null);
+  const aiSpeakingRef = useRef(false);
+  const answerEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { aiSpeakingRef.current = aiSpeaking; }, [aiSpeaking]);
+
+  // Auto-scroll to bottom of history
+  useEffect(() => {
+    answerEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [turns, currentQuestion]);
+
+  const speakTTS = useCallback((text: string) => {
+    if (!('speechSynthesis' in window)) return;
+
+    // Stop mic while AI speaks
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch (_) {}
+    }
+    setRecognitionActive(false);
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.05;
+    utterance.pitch = 0.95;
+    utterance.onstart = () => setAiSpeaking(true);
+    utterance.onend = () => setAiSpeaking(false);
+    utterance.onerror = () => setAiSpeaking(false);
+
+    const trySpeak = () => {
+      const voices = window.speechSynthesis.getVoices();
+      const englishVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Microsoft')))
+        || voices.find(v => v.lang.startsWith('en'));
+      if (englishVoice) utterance.voice = englishVoice;
+      window.speechSynthesis.speak(utterance);
+    };
+
+    if (window.speechSynthesis.getVoices().length > 0) {
+      trySpeak();
+    } else {
+      window.speechSynthesis.onvoiceschanged = () => {
+        trySpeak();
+        window.speechSynthesis.onvoiceschanged = null;
+      };
+    }
+  }, []);
 
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognition) {
       setSpeechSupported(true);
       const rec = new SpeechRecognition();
-      rec.continuous = true;
+      rec.continuous = false;
       rec.interimResults = true;
       rec.lang = 'en-US';
 
@@ -43,7 +88,7 @@ export default function BehavioralMock() {
           if (event.results[i].isFinal) final += event.results[i][0].transcript;
           else interim += event.results[i][0].transcript;
         }
-        setUserAnswer(final || interim);
+        setUserAnswer(prev => final ? prev + final : prev + interim);
       };
       rec.onerror = () => setRecognitionActive(false);
       rec.onend = () => setRecognitionActive(false);
@@ -52,11 +97,18 @@ export default function BehavioralMock() {
   }, []);
 
   const toggleVoice = () => {
-    if (!recognitionRef.current) return;
-    if (recognitionActive) recognitionRef.current.stop();
-    else {
-      setUserAnswer('');
-      recognitionRef.current.start();
+    if (!recognitionRef.current || aiSpeakingRef.current) return;
+    if (recognitionActive) {
+      try { recognitionRef.current.stop(); } catch (_) {}
+    } else {
+      try {
+        recognitionRef.current.start();
+      } catch (_) {
+        try {
+          recognitionRef.current.abort();
+          setTimeout(() => { try { recognitionRef.current.start(); } catch (__) {} }, 200);
+        } catch (__) {}
+      }
     }
   };
 
@@ -64,15 +116,43 @@ export default function BehavioralMock() {
     setSessionActive(true);
     setTurns([]);
     setReportCard(null);
-    setCurrentQuestion("Let's get started. Could you please introduce yourself and walk me through your background and key engineering achievements?");
+    setUserAnswer('');
+    const openingQ = "Let's get started. Could you please introduce yourself and walk me through your background and key engineering achievements?";
+    setCurrentQuestion(openingQ);
+    speakTTS(openingQ);
+  };
+
+  const finishSession = async (finalTurns: BehavioralTurn[]) => {
+    try {
+      const reportRes = await fetch('http://localhost:5000/api/ai/behavioral/report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ turns: finalTurns })
+      });
+      if (reportRes.ok) {
+        const finalReport = await reportRes.json();
+        setReportCard(finalReport);
+      } else {
+        throw new Error('report failed');
+      }
+    } catch {
+      const avgScore = Math.floor(finalTurns.reduce((acc, t) => acc + (t.score || 80), 0) / finalTurns.length);
+      setReportCard({
+        score: avgScore,
+        summary: "Your verbal pacing is well-suited. You successfully utilize collaborative terms. Suggestion: Structure your conflict resolution answers to contrast the initial challenge against the compromises you implemented.",
+        turns: finalTurns
+      });
+    }
+    setSessionActive(false);
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
   };
 
   const submitAnswer = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!userAnswer.trim()) return;
+    if (!userAnswer.trim() || loading) return;
 
     if (recognitionRef.current && recognitionActive) {
-      recognitionRef.current.stop();
+      try { recognitionRef.current.stop(); } catch (_) {}
     }
 
     setLoading(true);
@@ -90,7 +170,6 @@ export default function BehavioralMock() {
       if (res.ok) {
         const out = await res.json();
         
-        // Save current turn
         const newTurn: BehavioralTurn = {
           question: currentQuestion,
           answer: userAnswer.trim(),
@@ -103,34 +182,20 @@ export default function BehavioralMock() {
         setUserAnswer('');
 
         if (updatedTurns.length >= 3) {
-          try {
-            const reportRes = await fetch('http://localhost:5000/api/ai/behavioral/report', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ turns: updatedTurns })
-            });
-            if (reportRes.ok) {
-              const finalReport = await reportRes.json();
-              setReportCard(finalReport);
-            } else {
-              throw new Error('Failed to generate report');
-            }
-          } catch (err) {
-            console.error('Failed to get real report:', err);
-            const avgScore = Math.floor(updatedTurns.reduce((acc, t) => acc + (t.score || 80), 0) / updatedTurns.length);
-            setReportCard({
-              score: avgScore,
-              summary: "Your verbal pacing is well-suited. You successfully utilize collaborative terms. Suggestion: Structure your conflict resolution answers to contrast the initial challenge against the compromises you implemented. (Offline Fallback)",
-              turns: updatedTurns
-            });
-          }
-          setSessionActive(false);
+          await finishSession(updatedTurns);
         } else {
           setCurrentQuestion(out.question);
+          speakTTS(out.question);
         }
+      } else {
+        throw new Error('API error');
       }
     } catch (e) {
-      // Mock Turn fallback
+      const fallbackQuestions = [
+        "Tell me about a time you had to resolve a high-stress conflict inside an engineering team. What actions did you take?",
+        "Describe a situation where you had to deliver a project under a very tight deadline. How did you manage the pressure and prioritize tasks?"
+      ];
+
       const mockTurn: BehavioralTurn = {
         question: currentQuestion,
         answer: userAnswer.trim(),
@@ -142,28 +207,11 @@ export default function BehavioralMock() {
       setUserAnswer('');
 
       if (updated.length >= 3) {
-        try {
-          const reportRes = await fetch('http://localhost:5000/api/ai/behavioral/report', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ turns: updated })
-          });
-          if (reportRes.ok) {
-            const finalReport = await reportRes.json();
-            setReportCard(finalReport);
-          } else {
-            throw new Error('Failed to generate report');
-          }
-        } catch (err) {
-          setReportCard({
-            score: 85,
-            summary: "Good STAR framework utilization. Your communication is professional and clear. Quantify results extra to push scores above 90%! (Offline Fallback)",
-            turns: updated
-          });
-        }
-        setSessionActive(false);
+        await finishSession(updated);
       } else {
-        setCurrentQuestion("Excellent. Tell me about a time you had to resolve a high-stress conflict inside an engineering team. What actions did you take?");
+        const nextQ = fallbackQuestions[updated.length - 1] || "Tell me about a time you had a significant impact on a team or product outcome.";
+        setCurrentQuestion(nextQ);
+        speakTTS(nextQ);
       }
     } finally {
       setLoading(false);
@@ -185,8 +233,26 @@ export default function BehavioralMock() {
               <Smile className="h-5 w-5 text-brand-purple" /> Behavioral Prep
             </h3>
             <p className="text-slate-400 text-xs leading-normal">
-              Manager rounds evaluate your culture alignment and decision choices under high-pressure scenarios. We analyze structures using the **STAR Method**.
+              Manager rounds evaluate your culture alignment and decision choices under high-pressure scenarios. We analyze structures using the <strong>STAR Method</strong>.
             </p>
+
+            <div className="p-3 bg-dark-900 border border-slate-850 rounded-xl space-y-1.5">
+              <span className="text-[10px] font-bold text-slate-500 uppercase">What to expect:</span>
+              {['Introduction & background', 'Team conflict resolution', 'Deadline pressure scenario'].map((s, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs text-slate-400 font-semibold">
+                  <span className="h-1.5 w-1.5 rounded-full bg-brand-purple flex-shrink-0" />
+                  {s}
+                </div>
+              ))}
+            </div>
+
+            <div className="p-3 bg-dark-900 border border-slate-850 rounded-xl text-xs font-semibold">
+              {speechSupported ? (
+                <span className="text-emerald-400">🎤 Voice answering: Ready — click mic to speak</span>
+              ) : (
+                <span className="text-amber-400">⚠️ Speech not supported. Use Chrome/Edge, or type answers.</span>
+              )}
+            </div>
             
             <button
               onClick={handleStart}
@@ -218,10 +284,17 @@ export default function BehavioralMock() {
 
                 <div className="space-y-3">
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">STAR Round turns audit:</h4>
-                  {reportCard.turns.map((t: any, i: number) => (
+                  {reportCard.turns?.map((t: any, i: number) => (
                     <div key={i} className="glass p-4 rounded-xl border border-slate-850 space-y-2">
-                      <p className="text-slate-400 text-xs font-bold">Q{i+1}: {t.question}</p>
-                      <p className="text-slate-300 text-xs italic font-semibold">" {t.answer} "</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-slate-400 text-xs font-bold">Q{i+1}: {t.question}</p>
+                        {t.score && (
+                          <span className="text-[10px] font-bold text-brand-accent bg-brand-purple/10 px-2 py-0.5 rounded border border-brand-purple/20 flex-shrink-0">
+                            {t.score}%
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-slate-300 text-xs italic font-semibold">"{t.answer}"</p>
                       <div className="text-[10px] text-brand-accent leading-normal font-semibold border-t border-slate-850/50 pt-2 flex items-start gap-1">
                         <AlertCircle className="h-3.5 w-3.5 flex-shrink-0 text-brand-purple mt-0.5" />
                         <span>{t.feedback}</span>
@@ -244,16 +317,44 @@ export default function BehavioralMock() {
       )}
 
       {sessionActive && (
-        <div className="glass p-6 rounded-2xl border border-slate-800 space-y-6 max-w-2xl mx-auto animate-fade-in">
-          {/* Top session count */}
-          <div className="flex items-center justify-between border-b border-slate-850 pb-3">
-            <span className="text-[10px] font-bold text-brand-purple bg-brand-purple/10 px-2 py-0.5 rounded border border-brand-purple/20 uppercase tracking-widest">
-              Prompt {turns.length + 1} of 3
-            </span>
-            <span className="text-xs text-slate-500 font-semibold uppercase">Manager Round</span>
+        <div className="glass p-6 rounded-2xl border border-slate-800 space-y-5 max-w-2xl mx-auto animate-fade-in">
+          {/* Top session count with progress bar */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-brand-purple bg-brand-purple/10 px-2 py-0.5 rounded border border-brand-purple/20 uppercase tracking-widest">
+                Prompt {turns.length + 1} of 3
+              </span>
+              <span className="text-xs text-slate-500 font-semibold uppercase flex items-center gap-1.5">
+                {aiSpeaking && <span className="h-1.5 w-1.5 rounded-full bg-brand-purple animate-pulse" />}
+                {aiSpeaking ? 'AI Speaking...' : 'Manager Round'}
+              </span>
+            </div>
+            {/* Progress bar */}
+            <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-brand-violet to-brand-indigo rounded-full transition-all duration-500"
+                style={{ width: `${((turns.length) / 3) * 100}%` }}
+              />
+            </div>
           </div>
 
-          <div className="p-4 bg-dark-900 border border-slate-850 rounded-xl text-slate-300 text-sm font-semibold leading-relaxed">
+          {/* Previous turns summary */}
+          {turns.length > 0 && (
+            <div className="space-y-2">
+              {turns.map((t, i) => (
+                <div key={i} className="p-3 bg-dark-900/60 border border-slate-850 rounded-xl space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-bold text-slate-500 uppercase">Q{i+1} Completed</span>
+                    {t.score && <span className="text-[9px] font-bold text-emerald-400">{t.score}%</span>}
+                  </div>
+                  <p className="text-[10px] text-brand-accent font-semibold leading-normal">{t.feedback}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Current Question */}
+          <div className="p-4 bg-dark-900 border border-brand-purple/20 rounded-xl text-slate-300 text-sm font-semibold leading-relaxed">
             {currentQuestion}
           </div>
 
@@ -263,7 +364,7 @@ export default function BehavioralMock() {
               <textarea
                 value={userAnswer}
                 onChange={(e) => setUserAnswer(e.target.value)}
-                placeholder="Talk or type down your leadership or conflict answer using situation-action-results..."
+                placeholder={recognitionActive ? '🎤 Listening... speak your STAR answer' : 'Talk or type down your leadership or conflict answer using situation-action-results...'}
                 className="w-full h-[150px] p-4 bg-dark-900 border border-slate-800 rounded-xl focus:border-brand-purple outline-none text-xs text-slate-300 font-semibold resize-none leading-relaxed transition"
                 required
               />
@@ -274,35 +375,35 @@ export default function BehavioralMock() {
                 <button
                   type="button"
                   onClick={toggleVoice}
+                  disabled={aiSpeaking || loading}
                   className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold border transition ${
                     recognitionActive
                       ? 'bg-rose-500/10 border-rose-500/35 text-rose-400 animate-pulse'
+                      : aiSpeaking
+                      ? 'bg-dark-900 border-slate-800 text-slate-600 cursor-not-allowed'
                       : 'bg-dark-900 border-slate-800 text-slate-400 hover:text-white'
                   }`}
                 >
                   {recognitionActive ? (
-                    <>
-                      <MicOff className="h-3.5 w-3.5" /> Stop transcribing voice
-                    </>
+                    <><MicOff className="h-3.5 w-3.5" /> Stop transcribing</>
                   ) : (
-                    <>
-                      <Mic className="h-3.5 w-3.5 animate-pulse" /> Speak verbal answer
-                    </>
+                    <><Mic className="h-3.5 w-3.5" /> {aiSpeaking ? 'Wait for AI...' : 'Speak verbal answer'}</>
                   )}
                 </button>
               ) : (
-                <span className="text-[10px] text-slate-500 font-semibold italic">Speak capability unavailable.</span>
+                <span className="text-[10px] text-slate-500 font-semibold italic">Voice unavailable — type your answer.</span>
               )}
 
               <button
                 type="submit"
-                disabled={loading}
-                className="px-5 py-2 bg-brand-purple hover:bg-brand-violet text-white text-xs font-extrabold rounded-xl transition flex items-center gap-1.5 disabled:opacity-50"
+                disabled={loading || !userAnswer.trim()}
+                className="flex items-center gap-1.5 px-5 py-2 bg-brand-purple hover:bg-brand-violet text-white text-xs font-extrabold rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : 'Submit Answer'}
+                {loading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <><Send className="h-3.5 w-3.5" /> Submit Answer</>}
               </button>
             </div>
           </form>
+          <div ref={answerEndRef} />
         </div>
       )}
     </div>
