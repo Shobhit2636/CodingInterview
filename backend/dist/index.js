@@ -198,10 +198,16 @@ Return a JSON document inside a markdown block with the following exact keys:
 - "evaluation": Short notes on what the candidate did well or wrong.
 - "feedback": Helpful communication tips for the candidate.`;
         const responseText = await (0, ai_service_1.analyzeCodeWithAI)(prompt);
-        // Parse JSON
+        // Parse JSON safely
         const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        let parsed = null;
         if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
+            try {
+                parsed = JSON.parse(jsonMatch[0]);
+            }
+            catch (_) { }
+        }
+        if (parsed && typeof parsed.question === 'string' && parsed.question.trim().length > 0) {
             res.json(parsed);
         }
         else {

@@ -181,13 +181,19 @@ export default function AIInterviewer() {
 
       if (res.ok) {
         const reply = await res.json();
-        const interviewerTurn: ConversationTurn = { role: 'interviewer', text: reply.question };
+        const questionText = (reply && typeof reply.question === 'string' && reply.question.trim().length > 0)
+          ? reply.question.trim()
+          : (reply && typeof reply.text === 'string' && reply.text.trim().length > 0)
+          ? reply.text.trim()
+          : "Could you walk me through your step-by-step logic and the time complexity of your approach?";
+
+        const interviewerTurn: ConversationTurn = { role: 'interviewer', text: questionText };
         const newHistory = [...updatedHistory, interviewerTurn];
         setHistory(newHistory);
         historyRef.current = newHistory;
 
         // Speak the reply aloud, then automatically start listening for the candidate's next answer!
-        speakTTS(reply.question, () => {
+        speakTTS(questionText, () => {
           if (autoSendRef.current && interviewStartedRef.current) {
             startListening();
           }
@@ -613,7 +619,7 @@ export default function AIInterviewer() {
                           ? 'bg-dark-900 border border-slate-850 text-slate-350' 
                           : 'bg-brand-purple/10 border border-brand-purple/20 text-brand-accent'
                       }`}>
-                        {turn.text}
+                        {turn.text || (isInt ? "Could you explain your initial approach and data structure choices in more detail?" : "...")}
                       </div>
                     </div>
                   );

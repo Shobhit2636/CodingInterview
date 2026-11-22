@@ -46,7 +46,70 @@ async function analyzeCodeWithAI(prompt, context) {
  */
 function generateMockAIResponse(prompt) {
     const lowercasePrompt = prompt.toLowerCase();
-    // 1. COMPILER EXECUTOR MOCK PARSER
+    // 1a. FAANG LIVE CODING INTERVIEWER MOCK (Must be checked BEFORE generic review checks!)
+    if (lowercasePrompt.includes('coding interviewer') || lowercasePrompt.includes('live technical round') || lowercasePrompt.includes('faang coding interviewer')) {
+        // Extract user reply from prompt
+        let userReplyText = '';
+        const replyMatch = prompt.match(/The candidate's latest reply[^:]*:\s*"([^"]*)"/i);
+        if (replyMatch && replyMatch[1]) {
+            userReplyText = replyMatch[1].toLowerCase().trim();
+        }
+        if (userReplyText === 'yes' || userReplyText === 'yeah' || userReplyText === 'sure' || userReplyText === 'ok' || userReplyText === 'hello' || userReplyText === 'hi') {
+            return JSON.stringify({
+                question: "Great! Could you walk me through your initial algorithm and data structure choices to solve this problem?",
+                evaluation: "Candidate acknowledged and is ready to start.",
+                feedback: "Clear and confident start. Now explain your thinking aloud before typing code."
+            });
+        }
+        if (userReplyText.includes('hashmap') || userReplyText.includes('map') || userReplyText.includes('dictionary') || userReplyText.includes('hash table')) {
+            return JSON.stringify({
+                question: "Excellent choice using a Hash Map! What would be the Time and Space Complexity with this approach, and how will you store the seen values?",
+                evaluation: "Candidate chose the optimal O(N) Hash Map strategy.",
+                feedback: "Great data structure selection! Be ready to dry-run index lookups."
+            });
+        }
+        if (userReplyText.includes('pointer') || userReplyText.includes('two pointer')) {
+            return JSON.stringify({
+                question: "Two pointers is a great algorithmic technique! However, does the input array need to be sorted for two pointers to work, and how would that affect returning the original indices?",
+                evaluation: "Candidate considered two pointers.",
+                feedback: "Good thought! Always consider whether sorting modifies original indices required by the problem."
+            });
+        }
+        if (userReplyText.includes('brute force') || userReplyText.includes('nested') || userReplyText.includes('loop')) {
+            return JSON.stringify({
+                question: "A nested loop brute force checks all pairs in O(N^2) time. Can we optimize this down to linear O(N) time using an auxiliary data structure?",
+                evaluation: "Candidate proposed brute force O(N^2) baseline.",
+                feedback: "Always state the brute force first, then immediately propose an optimization."
+            });
+        }
+        if (userReplyText.includes('space') || userReplyText.includes('time') || userReplyText.includes('o(n)') || userReplyText.includes('o(1)') || userReplyText.includes('complexity')) {
+            return JSON.stringify({
+                question: "That complexity analysis is spot on. Let's start implementing your approach in the code editor on the right. How will you initialize your variables?",
+                evaluation: "Candidate accurately analyzed Big-O complexity bounds.",
+                feedback: "Clear Big-O articulation. Now transition into clean, structured code."
+            });
+        }
+        if (userReplyText.includes('edge') || userReplyText.includes('empty') || userReplyText.includes('negative') || userReplyText.includes('duplicate')) {
+            return JSON.stringify({
+                question: "Great catch on those edge cases! How does your algorithm handle negative targets or duplicate values in the array?",
+                evaluation: "Candidate actively validated boundary constraints.",
+                feedback: "Interviewers love when candidates proactively identify edge cases."
+            });
+        }
+        if (userReplyText.includes('done') || userReplyText.includes('finish') || userReplyText.includes('completed') || userReplyText.includes('submit')) {
+            return JSON.stringify({
+                question: "The interview is now complete. Generating report card...",
+                evaluation: "Candidate completed the coding round.",
+                feedback: "Outstanding work completing the problem end-to-end!"
+            });
+        }
+        return JSON.stringify({
+            question: "Good explanation. How would your approach handle edge cases like an array with duplicate numbers or negative values?",
+            evaluation: "Candidate explained high-level solution concepts.",
+            feedback: "Strong communication! Keep vocalizing your thought process as you implement."
+        });
+    }
+    // 1b. COMPILER EXECUTOR MOCK PARSER
     if (lowercasePrompt.includes('compile') || lowercasePrompt.includes('stdout')) {
         // Find expected outputs or test cases
         let status = 'Accepted';
@@ -74,7 +137,7 @@ function generateMockAIResponse(prompt) {
         });
     }
     // 2. AI CODE REVIEW MOCK
-    if (lowercasePrompt.includes('code review') || lowercasePrompt.includes('review') || lowercasePrompt.includes('complexity')) {
+    if (lowercasePrompt.includes('comprehensive, professional ai code review') || lowercasePrompt.includes('code review') || (lowercasePrompt.includes('review') && !lowercasePrompt.includes('interviewer'))) {
         const isTwoSum = lowercasePrompt.includes('twosum') || lowercasePrompt.includes('two sum');
         const hasDoubleLoop = lowercasePrompt.includes('for') && (prompt.match(/for/g) || []).length >= 2;
         if (isTwoSum && hasDoubleLoop) {
