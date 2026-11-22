@@ -87,8 +87,21 @@ export default function SystemDesignRound() {
     }
   }, []);
 
-  const speakTTS = useCallback((text: string) => {
-    if (!('speechSynthesis' in window)) return;
+  const startListening = useCallback(() => {
+    if (!recognitionRef.current || aiSpeakingRef.current) return;
+    try { recognitionRef.current.abort(); } catch (_) {}
+    setTimeout(() => {
+      if (!aiSpeakingRef.current) {
+        try { recognitionRef.current?.start(); } catch (_) {}
+      }
+    }, 200);
+  }, []);
+
+  const speakTTS = useCallback((text: string, onComplete?: () => void) => {
+    if (!('speechSynthesis' in window)) {
+      onComplete?.();
+      return;
+    }
 
     // Stop mic while AI speaks
     if (recognitionRef.current) {
@@ -101,8 +114,14 @@ export default function SystemDesignRound() {
     utterance.rate = 1.05;
     utterance.pitch = 0.95;
     utterance.onstart = () => setAiSpeaking(true);
-    utterance.onend = () => setAiSpeaking(false);
-    utterance.onerror = () => setAiSpeaking(false);
+    utterance.onend = () => {
+      setAiSpeaking(false);
+      onComplete?.();
+    };
+    utterance.onerror = () => {
+      setAiSpeaking(false);
+      onComplete?.();
+    };
 
     const trySpeak = () => {
       const voices = window.speechSynthesis.getVoices();
@@ -134,7 +153,7 @@ export default function SystemDesignRound() {
     const openingMsg = `Welcome to the System Design Round. Today, we'll design: ${selectedTitle}. Requirements: ${q?.requirements || ''}. To start, how would you design the high-level architecture diagram and API endpoints? Where will the major write load go?`;
     
     setHistory([{ role: 'interviewer', text: openingMsg }]);
-    speakTTS(openingMsg);
+    speakTTS(openingMsg, () => startListening());
   };
 
   const toggleVoice = () => {
@@ -185,14 +204,14 @@ export default function SystemDesignRound() {
         const reply = await res.json();
         const aiTurn: ConversationTurn = { role: 'interviewer', text: reply.question };
         setHistory(prev => [...prev, aiTurn]);
-        speakTTS(reply.question);
+        speakTTS(reply.question, () => startListening());
       } else {
         throw new Error('API error');
       }
     } catch (err) {
       const followUp = "Understood. How would you handle database partitioning to store billions of records? Would you choose Cassandra, MySQL, or MongoDB for this scenario and why?";
       setHistory(prev => [...prev, { role: 'interviewer', text: followUp }]);
-      speakTTS(followUp);
+      speakTTS(followUp, () => startListening());
     } finally {
       setLoadingReply(false);
     }

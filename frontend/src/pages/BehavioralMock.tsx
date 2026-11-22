@@ -36,8 +36,21 @@ export default function BehavioralMock() {
     answerEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [turns, currentQuestion]);
 
-  const speakTTS = useCallback((text: string) => {
-    if (!('speechSynthesis' in window)) return;
+  const startListening = useCallback(() => {
+    if (!recognitionRef.current || aiSpeakingRef.current) return;
+    try { recognitionRef.current.abort(); } catch (_) {}
+    setTimeout(() => {
+      if (!aiSpeakingRef.current) {
+        try { recognitionRef.current?.start(); } catch (_) {}
+      }
+    }, 200);
+  }, []);
+
+  const speakTTS = useCallback((text: string, onComplete?: () => void) => {
+    if (!('speechSynthesis' in window)) {
+      onComplete?.();
+      return;
+    }
 
     // Stop mic while AI speaks
     if (recognitionRef.current) {
@@ -50,8 +63,14 @@ export default function BehavioralMock() {
     utterance.rate = 1.05;
     utterance.pitch = 0.95;
     utterance.onstart = () => setAiSpeaking(true);
-    utterance.onend = () => setAiSpeaking(false);
-    utterance.onerror = () => setAiSpeaking(false);
+    utterance.onend = () => {
+      setAiSpeaking(false);
+      onComplete?.();
+    };
+    utterance.onerror = () => {
+      setAiSpeaking(false);
+      onComplete?.();
+    };
 
     const trySpeak = () => {
       const voices = window.speechSynthesis.getVoices();
@@ -119,7 +138,7 @@ export default function BehavioralMock() {
     setUserAnswer('');
     const openingQ = "Let's get started. Could you please introduce yourself and walk me through your background and key engineering achievements?";
     setCurrentQuestion(openingQ);
-    speakTTS(openingQ);
+    speakTTS(openingQ, () => startListening());
   };
 
   const finishSession = async (finalTurns: BehavioralTurn[]) => {
@@ -185,7 +204,7 @@ export default function BehavioralMock() {
           await finishSession(updatedTurns);
         } else {
           setCurrentQuestion(out.question);
-          speakTTS(out.question);
+          speakTTS(out.question, () => startListening());
         }
       } else {
         throw new Error('API error');
@@ -211,7 +230,7 @@ export default function BehavioralMock() {
       } else {
         const nextQ = fallbackQuestions[updated.length - 1] || "Tell me about a time you had a significant impact on a team or product outcome.";
         setCurrentQuestion(nextQ);
-        speakTTS(nextQ);
+        speakTTS(nextQ, () => startListening());
       }
     } finally {
       setLoading(false);

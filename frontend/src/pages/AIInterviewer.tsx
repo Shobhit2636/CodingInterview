@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
 import { 
   Mic, MicOff, Send, BrainCircuit, RefreshCw,
-  Video, User, Sparkles, LogOut, Code
+  Video, User, Sparkles, LogOut, Code, Zap, Volume2
 } from 'lucide-react';
 
 interface QuestionSummary {
@@ -33,18 +33,34 @@ export default function AIInterviewer() {
   const [recognitionActive, setRecognitionActive] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const [loadingReply, setLoadingReply] = useState(false);
+  const [autoSendVoice, setAutoSendVoice] = useState(true);
+  const [voiceLang, setVoiceLang] = useState('en-IN'); // en-IN / en-US
 
   // Report Card State
   const [reportCard, setReportCard] = useState<any | null>(null);
 
+  // Synchronous refs to prevent stale closures
   const recognitionRef = useRef<any>(null);
   const aiIsSpeakingRef = useRef(false);
+  const loadingReplyRef = useRef(false);
+  const interviewStartedRef = useRef(false);
+  const autoSendRef = useRef(true);
+  const speechBufferRef = useRef('');
+  const silenceTimerRef = useRef<any>(null);
+  const historyRef = useRef<ConversationTurn[]>([]);
+  const selectedQRef = useRef('');
+  const codeRef = useRef('');
+  const languageRef = useRef('javascript');
   const historyEndRef = useRef<HTMLDivElement>(null);
 
-  // Keep speaking ref in sync
-  useEffect(() => {
-    aiIsSpeakingRef.current = aiIsSpeaking;
-  }, [aiIsSpeaking]);
+  // Keep refs in sync
+  useEffect(() => { aiIsSpeakingRef.current = aiIsSpeaking; }, [aiIsSpeaking]);
+  useEffect(() => { loadingReplyRef.current = loadingReply; }, [loadingReply]);
+  useEffect(() => { interviewStartedRef.current = interviewStarted; }, [interviewStarted]);
+  useEffect(() => { autoSendRef.current = autoSendVoice; }, [autoSendVoice]);
+  useEffect(() => { selectedQRef.current = selectedQ; }, [selectedQ]);
+  useEffect(() => { codeRef.current = code; }, [code]);
+  useEffect(() => { languageRef.current = language; }, [language]);
 
   // Auto scroll conversation
   useEffect(() => {
@@ -58,9 +74,9 @@ export default function AIInterviewer() {
       return;
     }
 
-    // Stop any active recognition while AI speaks to prevent feedback loop
+    // Stop recognition while AI speaks to prevent audio loop
     if (recognitionRef.current) {
-      try { recognitionRef.current.stop(); } catch (_) {}
+      try { recognitionRef.current.abort(); } catch (_) {}
     }
     setRecognitionActive(false);
 
@@ -69,26 +85,29 @@ export default function AIInterviewer() {
     utterance.rate = 1.05;
     utterance.pitch = 0.95;
     
-    utterance.onstart = () => setAiIsSpeaking(true);
-    utterance.onend = () => {
-      setAiIsSpeaking(false);
-      onComplete?.();
+    utterance.onstart = () => {
+      setAiIsSpeaking(true);
+      aiIsSpeakingRef.current = true;
     };
-    utterance.onerror = () => {
+
+    const handleEnd = () => {
       setAiIsSpeaking(false);
+      aiIsSpeakingRef.current = false;
       onComplete?.();
     };
 
-    // Try to get a good English voice
+    utterance.onend = handleEnd;
+    utterance.onerror = handleEnd;
+
+    // Pick best natural English voice
     const trySpeak = () => {
       const voices = window.speechSynthesis.getVoices();
-      const englishVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Microsoft') || v.name.includes('Natural')))
+      const preferred = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Microsoft')))
         || voices.find(v => v.lang.startsWith('en'));
-      if (englishVoice) utterance.voice = englishVoice;
+      if (preferred) utterance.voice = preferred;
       window.speechSynthesis.speak(utterance);
     };
 
-    // Voices may not be loaded yet
     if (window.speechSynthesis.getVoices().length > 0) {
       trySpeak();
     } else {
@@ -99,49 +118,183 @@ export default function AIInterviewer() {
     }
   }, []);
 
-  // Initialize Speech Synthesis and Recognition
+  // Safe Start Listening
+  const startListening = useCallback(() => {
+    if (!recognitionRef.current || aiIsSpeakingRef.current || loadingReplyRef.current || !interviewStartedRef.current) {
+      return;
+    }
+
+    try {
+      recognitionRef.current.abort();
+    } catch (_) {}
+
+    setTimeout(() => {
+      if (!aiIsSpeakingRef.current && !loadingReplyRef.current && interviewStartedRef.current) {
+        try {
+          recognitionRef.current?.start();
+        } catch (err: any) {
+          console.warn('Speech recognition notice:', err.message);
+        }
+      }
+    }, 200);
+  }, []);
+
+  // Submit Candidate answer to AI (can be called automatically or manually)
+  const submitAnswerWithText = useCallback(async (customText?: string) => {
+    const text = (customText !== undefined ? customText : userSpeech).trim();
+    if (!text || loadingReplyRef.current) return;
+
+    // Clear any pending silence timer
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+
+    // Stop mic while sending
+    if (recognitionRef.current) {
+      try { recognitionRef.current.abort(); } catch (_) {}
+    }
+    setRecognitionActive(false);
+
+    const candidateTurn: ConversationTurn = { role: 'candidate', text };
+    const updatedHistory = [...historyRef.current, candidateTurn];
+    setHistory(updatedHistory);
+    historyRef.current = updatedHistory;
+
+    setUserSpeech('');
+    speechBufferRef.current = '';
+    setLoadingReply(true);
+    loadingReplyRef.current = true;
+
+    try {
+      const res = await fetch('http://localhost:5000/api/ai/interview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questionId: selectedQRef.current,
+          history: updatedHistory,
+          userReply: text,
+          code: codeRef.current,
+          language: languageRef.current
+        })
+      });
+
+      if (res.ok) {
+        const reply = await res.json();
+        const interviewerTurn: ConversationTurn = { role: 'interviewer', text: reply.question };
+        const newHistory = [...updatedHistory, interviewerTurn];
+        setHistory(newHistory);
+        historyRef.current = newHistory;
+
+        // Speak the reply aloud, then automatically start listening for the candidate's next answer!
+        speakTTS(reply.question, () => {
+          if (autoSendRef.current && interviewStartedRef.current) {
+            startListening();
+          }
+        });
+      } else {
+        throw new Error('API error');
+      }
+    } catch (e) {
+      const followUp = "Good explanation. How would you handle duplicate numbers or edge case inputs with this approach?";
+      const fallbackTurn: ConversationTurn = { role: 'interviewer', text: followUp };
+      const newHistory = [...updatedHistory, fallbackTurn];
+      setHistory(newHistory);
+      historyRef.current = newHistory;
+
+      speakTTS(followUp, () => {
+        if (autoSendRef.current && interviewStartedRef.current) {
+          startListening();
+        }
+      });
+    } finally {
+      setLoadingReply(false);
+      loadingReplyRef.current = false;
+    }
+  }, [userSpeech, speakTTS, startListening]);
+
+  // Form submit handler
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    submitAnswerWithText(userSpeech);
+  };
+
+  // Initialize Speech Recognition
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognition) {
       setSpeechSupported(true);
       const rec = new SpeechRecognition();
-      rec.continuous = false;      // Single utterance per session - more reliable
+      rec.continuous = true;
       rec.interimResults = true;
-      rec.lang = 'en-US';
+      rec.lang = voiceLang;
       rec.maxAlternatives = 1;
 
-      rec.onstart = () => setRecognitionActive(true);
+      rec.onstart = () => {
+        setRecognitionActive(true);
+      };
 
       rec.onresult = (event: any) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
+        let interim = '';
+        let final = '';
 
         for (let i = event.resultIndex; i < event.results.length; ++i) {
           if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
+            final += event.results[i][0].transcript;
           } else {
-            interimTranscript += event.results[i][0].transcript;
+            interim += event.results[i][0].transcript;
           }
         }
 
-        setUserSpeech(finalTranscript || interimTranscript);
+        const currentText = (final || interim).trim();
+        if (currentText) {
+          setUserSpeech(currentText);
+          speechBufferRef.current = currentText;
+
+          // Reset silence timer on every new word detected
+          if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+
+          // Auto-send after 1.8 seconds of silence when user stops talking
+          if (autoSendRef.current) {
+            silenceTimerRef.current = setTimeout(() => {
+              if (speechBufferRef.current.trim() && !aiIsSpeakingRef.current && !loadingReplyRef.current) {
+                submitAnswerWithText(speechBufferRef.current.trim());
+              }
+            }, 1800);
+          }
+        }
       };
 
       rec.onerror = (err: any) => {
-        console.error('Speech recognition error:', err.error);
-        // Don't show error for 'no-speech' — it's normal
-        setRecognitionActive(false);
+        console.warn('Speech recognition warning:', err.error);
+        if (err.error === 'not-allowed') {
+          setRecognitionActive(false);
+        }
       };
 
       rec.onend = () => {
         setRecognitionActive(false);
+
+        // If auto-send is on and we have accumulated speech, send it!
+        if (autoSendRef.current && speechBufferRef.current.trim() && !loadingReplyRef.current && !aiIsSpeakingRef.current) {
+          submitAnswerWithText(speechBufferRef.current.trim());
+        } else if (interviewStartedRef.current && !aiIsSpeakingRef.current && !loadingReplyRef.current) {
+          // If no speech yet, keep listening automatically
+          setTimeout(() => {
+            if (interviewStartedRef.current && !aiIsSpeakingRef.current && !loadingReplyRef.current) {
+              try {
+                recognitionRef.current?.start();
+              } catch (_) {}
+            }
+          }, 400);
+        }
       };
 
       recognitionRef.current = rec;
     }
 
     fetchQuestions();
-  }, []);
+  }, [voiceLang, submitAnswerWithText]);
 
   const fetchQuestions = async () => {
     try {
@@ -164,9 +317,12 @@ export default function AIInterviewer() {
 
   const startInterview = () => {
     setInterviewStarted(true);
+    interviewStartedRef.current = true;
     setReportCard(null);
     setHistory([]);
+    historyRef.current = [];
     setUserSpeech('');
+    speechBufferRef.current = '';
     
     const openingMsg = `Hello! Thank you for joining today's technical coding round. We'll be solving the question: ${
       questions.find(q => q.id === selectedQ)?.title || 'selected challenge'
@@ -174,72 +330,27 @@ export default function AIInterviewer() {
 
     const firstTurn: ConversationTurn = { role: 'interviewer', text: openingMsg };
     setHistory([firstTurn]);
-    speakTTS(openingMsg);
+    historyRef.current = [firstTurn];
+
+    // AI speaks the opening message, then automatically starts listening to the candidate!
+    speakTTS(openingMsg, () => {
+      if (autoSendRef.current && interviewStartedRef.current) {
+        startListening();
+      }
+    });
   };
 
-  // Toggle Speech Recognition listening
+  // Toggle Speech Recognition listening manually
   const toggleSpeechRecognition = () => {
     if (!recognitionRef.current || aiIsSpeakingRef.current) return;
 
     if (recognitionActive) {
-      try { recognitionRef.current.stop(); } catch (_) {}
+      try { recognitionRef.current.abort(); } catch (_) {}
+      setRecognitionActive(false);
     } else {
       setUserSpeech('');
-      try { recognitionRef.current.start(); } catch (_) {
-        // If already started, abort and restart
-        try {
-          recognitionRef.current.abort();
-          setTimeout(() => {
-            try { recognitionRef.current.start(); } catch (__) {}
-          }, 200);
-        } catch (__) {}
-      }
-    }
-  };
-
-  // Submit Candidate spoken reply to backend AI
-  const submitAnswer = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!userSpeech.trim() || loadingReply) return;
-
-    // Stop mic before submitting
-    if (recognitionRef.current && recognitionActive) {
-      try { recognitionRef.current.stop(); } catch (_) {}
-    }
-
-    const candidateTurn: ConversationTurn = { role: 'candidate', text: userSpeech.trim() };
-    const updatedHistory = [...history, candidateTurn];
-    setHistory(updatedHistory);
-    setUserSpeech('');
-    setLoadingReply(true);
-
-    try {
-      const res = await fetch('http://localhost:5000/api/ai/interview', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          questionId: selectedQ,
-          history: updatedHistory,
-          userReply: candidateTurn.text,
-          code,
-          language
-        })
-      });
-
-      if (res.ok) {
-        const reply = await res.json();
-        const interviewerTurn: ConversationTurn = { role: 'interviewer', text: reply.question };
-        setHistory(prev => [...prev, interviewerTurn]);
-        speakTTS(reply.question);
-      } else {
-        throw new Error('API error');
-      }
-    } catch (e) {
-      const followUp = "Excellent approach explanation. Let's see how you initialize your variables. How would you handle an empty list constraint?";
-      setHistory(prev => [...prev, { role: 'interviewer', text: followUp }]);
-      speakTTS(followUp);
-    } finally {
-      setLoadingReply(false);
+      speechBufferRef.current = '';
+      startListening();
     }
   };
 
@@ -247,8 +358,9 @@ export default function AIInterviewer() {
   const handleFinishInterview = async () => {
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     if (recognitionRef.current) {
-      try { recognitionRef.current.stop(); } catch (_) {}
+      try { recognitionRef.current.abort(); } catch (_) {}
     }
+    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
 
     setLoadingReply(true);
     try {
@@ -257,15 +369,16 @@ export default function AIInterviewer() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           questionId: selectedQ,
-          history,
-          code,
-          language
+          history: historyRef.current,
+          code: codeRef.current,
+          language: languageRef.current
         })
       });
       if (res.ok) {
         const report = await res.json();
         setReportCard(report);
         setInterviewStarted(false);
+        interviewStartedRef.current = false;
         setHistory([]);
       } else {
         throw new Error('API error');
@@ -283,6 +396,7 @@ export default function AIInterviewer() {
         ]
       });
       setInterviewStarted(false);
+      interviewStartedRef.current = false;
       setHistory([]);
     } finally {
       setLoadingReply(false);
@@ -293,7 +407,7 @@ export default function AIInterviewer() {
     <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">AI Voice Interviewer</h1>
-        <p className="text-slate-400 text-sm mt-1">Practice a high-pressure coding round. The AI interviewer speaks questions aloud and transcribes your voice.</p>
+        <p className="text-slate-400 text-sm mt-1">Practice a high-pressure coding round. The AI interviewer speaks questions aloud and automatically listens to your voice replies.</p>
       </div>
 
       {/* 1. SETUP / REPORT CARD DISPLAY */}
@@ -323,12 +437,24 @@ export default function AIInterviewer() {
                 </div>
 
                 <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Voice Accent / Dialect</label>
+                  <select
+                    value={voiceLang}
+                    onChange={(e) => setVoiceLang(e.target.value)}
+                    className="w-full px-3 py-2 bg-dark-900 border border-slate-800 rounded-xl outline-none focus:border-brand-purple text-slate-300 text-xs font-semibold transition"
+                  >
+                    <option value="en-IN">English (India) - en-IN</option>
+                    <option value="en-US">English (US) - en-US</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-500 uppercase">Voice Status</label>
                   <div className="p-3 bg-dark-900 border border-slate-850 rounded-xl text-xs font-semibold leading-relaxed">
                     {speechSupported ? (
-                      <span className="text-emerald-400">🎤 Browser Speech Recognition: Ready</span>
+                      <span className="text-emerald-400">🎤 Browser Speech Recognition: Ready (Auto-Listen enabled)</span>
                     ) : (
-                      <span className="text-amber-400">⚠️ Speech Recognition not supported. Use Chrome or Edge. You can still type your answers.</span>
+                      <span className="text-amber-400">⚠️ Speech Recognition not supported in this browser. Please use Chrome or Edge.</span>
                     )}
                   </div>
                 </div>
@@ -396,46 +522,74 @@ export default function AIInterviewer() {
         <div className="h-[78vh] flex flex-col md:flex-row gap-4">
           {/* Left panel: Live call simulator & Chat Transcript */}
           <div className="w-full md:w-1/2 flex flex-col gap-4 overflow-y-auto">
-            {/* Call Screen simulator */}
-            <div className="glass rounded-xl p-5 border border-slate-800 flex items-center justify-between flex-wrap gap-4 bg-dark-900/40">
+            {/* Call Screen simulator header */}
+            <div className="glass rounded-xl p-4 border border-slate-800 flex items-center justify-between flex-wrap gap-3 bg-dark-900/40">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-full bg-brand-purple/10 border border-brand-purple/20 flex items-center justify-center text-brand-accent">
                   <Video className="h-5 w-5" />
                 </div>
                 <div>
                   <h4 className="text-xs font-bold">FAANG Interviewer AI</h4>
-                  <span className={`text-[10px] font-semibold uppercase tracking-wider flex items-center gap-1 ${aiIsSpeaking ? 'text-brand-purple animate-pulse' : 'text-emerald-400'}`}>
-                    <span className={`h-1.5 w-1.5 rounded-full ${aiIsSpeaking ? 'bg-brand-purple' : 'bg-emerald-400'}`} />
-                    {aiIsSpeaking ? 'AI Speaking...' : 'Listening Mode'}
-                  </span>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {aiIsSpeaking ? (
+                      <span className="text-[10px] font-bold text-brand-purple animate-pulse flex items-center gap-1">
+                        <Volume2 className="h-3 w-3" /> AI Speaking...
+                      </span>
+                    ) : recognitionActive ? (
+                      <span className="text-[10px] font-bold text-emerald-400 animate-pulse flex items-center gap-1">
+                        <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" /> Listening to you... Speak now
+                      </span>
+                    ) : loadingReply ? (
+                      <span className="text-[10px] font-bold text-amber-400 flex items-center gap-1">
+                        <RefreshCw className="h-3 w-3 animate-spin" /> Thinking...
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-slate-400 flex items-center gap-1">
+                        <Mic className="h-3 w-3 text-slate-500" /> Ready to listen
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* Speech soundwaves visualizer */}
-              <div className="flex gap-0.5 items-center bg-dark-900 border border-slate-850 px-3 py-1.5 rounded-xl h-[32px]">
-                <span className="text-[9px] text-slate-500 font-bold uppercase mr-1.5">
-                  {aiIsSpeaking ? 'AI Speaking' : recognitionActive ? 'Listening' : 'Idle'}
-                </span>
-                
-                {aiIsSpeaking ? (
-                  [0.6, 0.9, 0.4, 0.7, 0.2].map((h, i) => (
-                    <div 
-                      key={i} 
-                      style={{ height: `${h * 16}px` }} 
-                      className="w-0.5 bg-brand-purple rounded-full animate-pulse" 
-                    />
-                  ))
-                ) : recognitionActive ? (
-                  [0.5, 0.8, 0.3, 0.9, 0.4].map((h, i) => (
-                    <div 
-                      key={i} 
-                      style={{ height: `${h * 16}px` }} 
-                      className="w-0.5 bg-rose-400 rounded-full animate-pulse" 
-                    />
-                  ))
-                ) : (
-                  <div className="h-1.5 w-1.5 rounded-full bg-slate-600" />
-                )}
+              {/* Controls & Wave visualizer */}
+              <div className="flex items-center gap-2">
+                {/* Auto-Send Voice Toggle */}
+                <button
+                  type="button"
+                  onClick={() => setAutoSendVoice(!autoSendVoice)}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition ${
+                    autoSendVoice 
+                      ? 'bg-brand-purple/20 border-brand-purple/40 text-brand-accent' 
+                      : 'bg-dark-900 border-slate-800 text-slate-500'
+                  }`}
+                  title="When ON, your answers are sent automatically after speaking"
+                >
+                  <Zap className="h-3 w-3" /> Auto-Send: {autoSendVoice ? 'ON' : 'OFF'}
+                </button>
+
+                {/* Animated waves */}
+                <div className="flex gap-0.5 items-center bg-dark-900 border border-slate-850 px-2.5 py-1.5 rounded-xl h-[32px]">
+                  {aiIsSpeaking ? (
+                    [0.6, 0.9, 0.4, 0.8, 0.3].map((h, i) => (
+                      <div 
+                        key={i} 
+                        style={{ height: `${h * 16}px` }} 
+                        className="w-0.5 bg-brand-purple rounded-full animate-pulse" 
+                      />
+                    ))
+                  ) : recognitionActive ? (
+                    [0.5, 0.9, 0.3, 0.8, 0.4].map((h, i) => (
+                      <div 
+                        key={i} 
+                        style={{ height: `${h * 16}px` }} 
+                        className="w-0.5 bg-emerald-400 rounded-full animate-pulse" 
+                      />
+                    ))
+                  ) : (
+                    <div className="h-1.5 w-1.5 rounded-full bg-slate-600" />
+                  )}
+                </div>
               </div>
             </div>
 
@@ -465,21 +619,31 @@ export default function AIInterviewer() {
                   );
                 })}
                 {loadingReply && (
-                  <div className="flex gap-2 items-center text-slate-500 text-xs italic">
-                    <RefreshCw className="h-3 w-3 animate-spin text-brand-purple" /> Interviewer is formulating feedback...
+                  <div className="flex gap-2 items-center text-slate-400 text-xs italic bg-brand-purple/5 p-3 rounded-xl border border-brand-purple/20 animate-pulse">
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin text-brand-purple" /> 
+                    <span>AI Interviewer is formulating feedback and your next question...</span>
                   </div>
                 )}
                 <div ref={historyEndRef} />
               </div>
 
               {/* Bottom user speaking/typing deck */}
-              <form onSubmit={submitAnswer} className="p-4 bg-dark-900 border-t border-slate-850 space-y-3">
+              <form onSubmit={handleFormSubmit} className="p-4 bg-dark-900 border-t border-slate-850 space-y-3">
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={userSpeech}
-                    onChange={(e) => setUserSpeech(e.target.value)}
-                    placeholder={recognitionActive ? '🎤 Listening... speak your answer' : 'Speak or type your explanation here...'}
+                    onChange={(e) => {
+                      setUserSpeech(e.target.value);
+                      speechBufferRef.current = e.target.value;
+                    }}
+                    placeholder={
+                      recognitionActive 
+                        ? '🎤 Listening to your voice... Speak your explanation' 
+                        : aiIsSpeaking
+                        ? 'AI is speaking...'
+                        : 'Type or click mic to speak your answer...'
+                    }
                     className="flex-1 px-4 py-2.5 bg-dark-900 border border-slate-800 rounded-xl focus:border-brand-purple outline-none text-xs text-slate-200 font-semibold transition"
                   />
                   
@@ -490,29 +654,33 @@ export default function AIInterviewer() {
                       disabled={aiIsSpeaking || loadingReply}
                       className={`p-2.5 rounded-xl border transition ${
                         recognitionActive 
-                          ? 'bg-rose-500/10 border-rose-500/35 text-rose-400 animate-pulse'
+                          ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400 animate-pulse'
                           : aiIsSpeaking
                           ? 'bg-dark-900 border-slate-800 text-slate-600 cursor-not-allowed'
                           : 'bg-dark-900 border-slate-800 text-slate-400 hover:text-white'
                       }`}
-                      title={aiIsSpeaking ? 'Wait for AI to finish speaking' : recognitionActive ? 'Stop Listening' : 'Speak Answer'}
+                      title={aiIsSpeaking ? 'Wait for AI to finish speaking' : recognitionActive ? 'Stop Listening' : 'Start Listening'}
                     >
-                      {recognitionActive ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                      {recognitionActive ? <MicOff className="h-4 w-4 text-emerald-400" /> : <Mic className="h-4 w-4" />}
                     </button>
                   )}
 
                   <button
                     type="submit"
                     disabled={!userSpeech.trim() || loadingReply}
-                    className="px-4 py-2.5 bg-brand-purple hover:bg-brand-violet text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2.5 bg-brand-purple hover:bg-brand-violet text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-brand-purple/20"
                   >
                     Send <Send className="h-3.5 w-3.5" />
                   </button>
                 </div>
 
                 <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-850/50">
-                  <span className="text-[10px] text-slate-500 font-semibold italic">
-                    {aiIsSpeaking ? '🔇 Mic muted while AI speaks' : 'Tip: Discuss big-O steps before typing lines.'}
+                  <span className="text-[10px] text-slate-400 font-semibold">
+                    {recognitionActive 
+                      ? '🎙️ Speaking... When you pause, answer sends automatically!'
+                      : aiIsSpeaking 
+                      ? '🔇 Mic paused while AI speaks' 
+                      : '💡 Speak naturally or type and hit Send.'}
                   </span>
                   
                   <button
@@ -527,7 +695,7 @@ export default function AIInterviewer() {
             </div>
           </div>
 
-          {/* Right panel: Collaborative Coding Editor */}
+          {/* Right panel: Live Coding Editor */}
           <div className="w-full md:w-1/2 flex flex-col gap-3">
             <div className="glass rounded-xl p-3 border border-slate-800 flex items-center justify-between">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
