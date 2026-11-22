@@ -49,64 +49,143 @@ function generateMockAIResponse(prompt) {
     // 1a. FAANG LIVE CODING INTERVIEWER MOCK (Must be checked BEFORE generic review checks!)
     if (lowercasePrompt.includes('coding interviewer') || lowercasePrompt.includes('live technical round') || lowercasePrompt.includes('faang coding interviewer')) {
         // Extract user reply from prompt
-        let userReplyText = '';
+        let userReply = '';
         const replyMatch = prompt.match(/The candidate's latest reply[^:]*:\s*"([^"]*)"/i);
         if (replyMatch && replyMatch[1]) {
-            userReplyText = replyMatch[1].toLowerCase().trim();
+            userReply = replyMatch[1].trim();
         }
-        if (userReplyText === 'yes' || userReplyText === 'yeah' || userReplyText === 'sure' || userReplyText === 'ok' || userReplyText === 'hello' || userReplyText === 'hi') {
+        const replyLower = userReply.toLowerCase();
+        // Extract conversation history to track context and avoid repetitive questions
+        let history = [];
+        const historyMatch = prompt.match(/Here is the conversation history so far:\s*(\[[^\]]*\])/is);
+        if (historyMatch && historyMatch[1]) {
+            try {
+                history = JSON.parse(historyMatch[1]);
+            }
+            catch (_) { }
+        }
+        const historyText = JSON.stringify(history).toLowerCase();
+        // Check 1: User provides concrete test inputs / arrays / numbers (e.g., "nums = {3, 3}; target = 6;")
+        const hasNumbersOrArray = /\bnums\b|\btarget\b|\b\{\s*\d+|\b\[\s*\d+|\b\d+\s*,\s*\d+/.test(replyLower);
+        if (hasNumbersOrArray) {
             return JSON.stringify({
-                question: "Great! Could you walk me through your initial algorithm and data structure choices to solve this problem?",
-                evaluation: "Candidate acknowledged and is ready to start.",
-                feedback: "Clear and confident start. Now explain your thinking aloud before typing code."
+                question: `Looking closely at your test case (${userReply}): as we iterate, calculating complement = target - num checks existing entries in constant time. How will you store the seen elements in memory, and what will be the Time and Space Complexities?`,
+                evaluation: `Candidate effectively dry-ran a test case: "${userReply}".`,
+                feedback: "Great habit of providing concrete test inputs! Tracing edge cases early prevents algorithmic errors."
             });
         }
-        if (userReplyText.includes('hashmap') || userReplyText.includes('map') || userReplyText.includes('dictionary') || userReplyText.includes('hash table')) {
+        // Check 2: Willingness or confirmation to explain ("i can explain", "yes", "sure", "ok", "let me explain")
+        if (/^(i can explain|let me explain|yes|yeah|sure|ok|okay|yep|start|i will explain|ready|proceed)\b/i.test(replyLower)) {
+            if (!historyText.includes('data structure') && !historyText.includes('hash map')) {
+                return JSON.stringify({
+                    question: "Awesome, I'm listening! What data structure or algorithmic technique would you start with to solve this efficiently?",
+                    evaluation: "Candidate acknowledged and is ready to explain.",
+                    feedback: "Clear communication start! Explain your logic aloud step-by-step."
+                });
+            }
+            else {
+                return JSON.stringify({
+                    question: "Go right ahead! Walk me through the exact steps of your algorithm.",
+                    evaluation: "Candidate is explaining algorithm logic.",
+                    feedback: "Keep vocalizing your line-by-line reasoning."
+                });
+            }
+        }
+        // Check 3: Hash Map / Dictionary / Hash Table
+        if (/hash\s*map|hashmap|hash\s*table|map|dictionary|dict\b/i.test(replyLower)) {
             return JSON.stringify({
-                question: "Excellent choice using a Hash Map! What would be the Time and Space Complexity with this approach, and how will you store the seen values?",
-                evaluation: "Candidate chose the optimal O(N) Hash Map strategy.",
-                feedback: "Great data structure selection! Be ready to dry-run index lookups."
+                question: "Using a Hash Map is optimal here! What will you store as the key and the value in the map, and how does it guarantee O(1) lookups?",
+                evaluation: "Candidate selected optimal Hash Map approach.",
+                feedback: "Excellent data structure choice. Detail what you store as key vs value."
             });
         }
-        if (userReplyText.includes('pointer') || userReplyText.includes('two pointer')) {
+        // Check 4: Two Pointers / Sorting
+        if (/pointer|two\s*pointer|sort/i.test(replyLower)) {
             return JSON.stringify({
-                question: "Two pointers is a great algorithmic technique! However, does the input array need to be sorted for two pointers to work, and how would that affect returning the original indices?",
-                evaluation: "Candidate considered two pointers.",
-                feedback: "Good thought! Always consider whether sorting modifies original indices required by the problem."
+                question: "Two pointers is a strong technique! However, sorting takes O(N log N) time and alters indices. How would you return the original indices?",
+                evaluation: "Candidate considered two pointer technique.",
+                feedback: "Good thought! Always check whether sorting preserves original index requirements."
             });
         }
-        if (userReplyText.includes('brute force') || userReplyText.includes('nested') || userReplyText.includes('loop')) {
+        // Check 5: Nested loop / Brute Force
+        if (/nested|brute|loop|two\s*loops|o\(n\^2\)/i.test(replyLower)) {
             return JSON.stringify({
-                question: "A nested loop brute force checks all pairs in O(N^2) time. Can we optimize this down to linear O(N) time using an auxiliary data structure?",
-                evaluation: "Candidate proposed brute force O(N^2) baseline.",
-                feedback: "Always state the brute force first, then immediately propose an optimization."
+                question: "Checking every pair with nested loops gives an O(N^2) baseline. Can we optimize this down to linear O(N) time by using extra memory?",
+                evaluation: "Candidate proposed O(N^2) brute force solution.",
+                feedback: "Stating the brute force first is great. Now propose a hash-based optimization."
             });
         }
-        if (userReplyText.includes('space') || userReplyText.includes('time') || userReplyText.includes('o(n)') || userReplyText.includes('o(1)') || userReplyText.includes('complexity')) {
+        // Check 6: Complexity Analysis (O(N), O(1), Time, Space)
+        if (/o\(n\)|o\(1\)|time|space|complexity|linear|constant|big\s*o/i.test(replyLower)) {
             return JSON.stringify({
-                question: "That complexity analysis is spot on. Let's start implementing your approach in the code editor on the right. How will you initialize your variables?",
-                evaluation: "Candidate accurately analyzed Big-O complexity bounds.",
-                feedback: "Clear Big-O articulation. Now transition into clean, structured code."
+                question: "That Big-O complexity breakdown is spot on! Now let's write out the implementation in the code editor on the right. How will you structure the function?",
+                evaluation: "Candidate accurately analyzed time and space bounds.",
+                feedback: "Strong complexity grasp. Now transition to clean code."
             });
         }
-        if (userReplyText.includes('edge') || userReplyText.includes('empty') || userReplyText.includes('negative') || userReplyText.includes('duplicate')) {
+        // Check 7: Edge cases / Duplicates / Negative numbers / Zeroes
+        if (/edge|duplicate|negative|empty|zero|boundary/i.test(replyLower)) {
             return JSON.stringify({
-                question: "Great catch on those edge cases! How does your algorithm handle negative targets or duplicate values in the array?",
-                evaluation: "Candidate actively validated boundary constraints.",
-                feedback: "Interviewers love when candidates proactively identify edge cases."
+                question: "Great attention to detail on edge cases! How will your code handle an empty array or when no two numbers sum up to the target?",
+                evaluation: "Candidate evaluated boundary constraints.",
+                feedback: "Proactively addressing edge cases is a big plus in technical rounds."
             });
         }
-        if (userReplyText.includes('done') || userReplyText.includes('finish') || userReplyText.includes('completed') || userReplyText.includes('submit')) {
+        // Check 8: Done / Code Written
+        if (/done|finished|implemented|written|check|complete|submit/i.test(replyLower)) {
             return JSON.stringify({
                 question: "The interview is now complete. Generating report card...",
-                evaluation: "Candidate completed the coding round.",
-                feedback: "Outstanding work completing the problem end-to-end!"
+                evaluation: "Candidate finished the interview session.",
+                feedback: "Great job completing the challenge end-to-end!"
             });
         }
+        // Check 9: Non-repeating progressive interview stages
+        const progressiveStages = [
+            {
+                keyword: "algorithm",
+                q: "Interesting point! Could you walk me through the specific algorithm and data structures you plan to use?",
+                e: "Candidate shared preliminary thoughts.",
+                f: "Break down the problem into small, manageable algorithmic steps."
+            },
+            {
+                keyword: "potential edge",
+                q: "Understood. How would you handle potential edge cases, such as an array with duplicate numbers or negative values?",
+                e: "Candidate elaborated on their method.",
+                f: "Always consider input bounds and corner cases."
+            },
+            {
+                keyword: "worst-case",
+                q: "That makes sense. What would be the worst-case Time Complexity and Space Complexity in terms of Big-O?",
+                e: "Candidate discussed trade-offs.",
+                f: "Practice calculating Big-O bounds quickly."
+            },
+            {
+                keyword: "translate",
+                q: "Great! Let's translate this into actual code. Please write your solution in the code editor on the right.",
+                e: "Candidate is ready to write code.",
+                f: "Write clean, readable variable names and functions."
+            },
+            {
+                keyword: "complete",
+                q: "The interview is now complete. Generating report card...",
+                e: "Candidate completed the interview.",
+                f: "Solid overall execution."
+            }
+        ];
+        // Pick the first stage that hasn't appeared yet in the conversation
+        for (const stage of progressiveStages) {
+            if (!historyText.includes(stage.keyword)) {
+                return JSON.stringify({
+                    question: stage.q,
+                    evaluation: stage.e,
+                    feedback: stage.f
+                });
+            }
+        }
         return JSON.stringify({
-            question: "Good explanation. How would your approach handle edge cases like an array with duplicate numbers or negative values?",
-            evaluation: "Candidate explained high-level solution concepts.",
-            feedback: "Strong communication! Keep vocalizing your thought process as you implement."
+            question: "The interview is now complete. Generating report card...",
+            evaluation: "Candidate completed the technical coding round.",
+            feedback: "Great job walking through all the stages of the problem!"
         });
     }
     // 1b. COMPILER EXECUTOR MOCK PARSER
