@@ -19,10 +19,10 @@ interface CollabUser {
   cursorPos?: { lineNumber: number; column: number };
 }
 
-export default function CollabRoom() {
+export default function CollabRoom({ defaultUsername = 'Shobhit' }: { defaultUsername?: string } = {}) {
   const [inRoom, setInRoom] = useState(false);
   const [roomId, setRoomId] = useState('');
-  const [username, setUsername] = useState('Shobhit');
+  const [username, setUsername] = useState(defaultUsername);
   
   // Real-time states
   const socketRef = useRef<Socket | null>(null);

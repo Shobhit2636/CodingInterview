@@ -1,8 +1,13 @@
 import sqlite3 from 'sqlite3';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 
 const dbPath = path.resolve(__dirname, '../../platform.db');
+
+export function hashPassword(password: string): string {
+  return crypto.createHash('sha256').update(password).digest('hex');
+}
 
 // Ensure parent directories exist
 if (!fs.existsSync(path.dirname(dbPath))) {
@@ -81,6 +86,8 @@ export async function initDatabase() {
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       username TEXT NOT NULL,
+      email TEXT,
+      password TEXT,
       points INTEGER DEFAULT 0,
       rating INTEGER DEFAULT 1200,
       accuracy REAL DEFAULT 0.0,
@@ -88,8 +95,17 @@ export async function initDatabase() {
     )
   `);
 
+  // Migrate existing table if email or password columns are missing
+  try {
+    await dbRun(`ALTER TABLE users ADD COLUMN email TEXT`);
+  } catch (_) {}
+  try {
+    await dbRun(`ALTER TABLE users ADD COLUMN password TEXT`);
+  } catch (_) {}
+
   // Seed default user if not exists
-  const user = await dbGet('SELECT * FROM users LIMIT 1');
+  const defaultPasswordHash = hashPassword('password123');
+  const user = await dbGet('SELECT * FROM users WHERE id = ?', ['user_1']);
   if (!user) {
     // Generate a default mock contribution heatmap for the user
     // Format: "YYYY-MM-DD": submissions_count
@@ -106,9 +122,18 @@ export async function initDatabase() {
     }
 
     await dbRun(
-      'INSERT INTO users (id, username, points, rating, accuracy, heatmaps) VALUES (?, ?, ?, ?, ?, ?)',
-      ['user_1', 'Shobhit', 450, 1680, 78.4, JSON.stringify(mockHeatmap)]
+      'INSERT INTO users (id, username, email, password, points, rating, accuracy, heatmaps) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      ['user_1', 'Shobhit', 'shobhit@example.com', defaultPasswordHash, 450, 1680, 78.4, JSON.stringify(mockHeatmap)]
     );
+  } else {
+    // If user_1 already exists from earlier runs, ensure email and password exist
+    const u = user as any;
+    if (!u.email || !u.password) {
+      await dbRun(
+        'UPDATE users SET email = COALESCE(email, ?), password = COALESCE(password, ?) WHERE id = ?',
+        ['shobhit@example.com', defaultPasswordHash, 'user_1']
+      );
+    }
   }
 
   // Seed default questions if table is empty

@@ -20,14 +20,14 @@ interface DashboardStats {
   stats: { name: string; value: number }[];
 }
 
-export default function Dashboard({ onNavigate }: { onNavigate: (page: string, data?: any) => void }) {
+export default function Dashboard({ onNavigate, userId }: { onNavigate: (page: string, data?: any) => void; userId?: string }) {
   const [data, setData] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchStats = async () => {
     try {
       setLoading(true);
-      const res = await fetch('http://localhost:5000/api/dashboard/user_1');
+      const res = await fetch(`http://localhost:5000/api/dashboard/${userId || 'user_1'}`);
       if (res.ok) {
         const stats = await res.json();
         setData(stats);

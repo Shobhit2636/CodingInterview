@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.hashPassword = hashPassword;
 exports.dbRun = dbRun;
 exports.dbAll = dbAll;
 exports.dbGet = dbGet;
@@ -10,7 +11,11 @@ exports.initDatabase = initDatabase;
 const sqlite3_1 = __importDefault(require("sqlite3"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
+const crypto_1 = __importDefault(require("crypto"));
 const dbPath = path_1.default.resolve(__dirname, '../../platform.db');
+function hashPassword(password) {
+    return crypto_1.default.createHash('sha256').update(password).digest('hex');
+}
 // Ensure parent directories exist
 if (!fs_1.default.existsSync(path_1.default.dirname(dbPath))) {
     fs_1.default.mkdirSync(path_1.default.dirname(dbPath), { recursive: true });
@@ -86,14 +91,26 @@ async function initDatabase() {
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       username TEXT NOT NULL,
+      email TEXT,
+      password TEXT,
       points INTEGER DEFAULT 0,
       rating INTEGER DEFAULT 1200,
       accuracy REAL DEFAULT 0.0,
       heatmaps TEXT DEFAULT '{}'
     )
   `);
+    // Migrate existing table if email or password columns are missing
+    try {
+        await dbRun(`ALTER TABLE users ADD COLUMN email TEXT`);
+    }
+    catch (_) { }
+    try {
+        await dbRun(`ALTER TABLE users ADD COLUMN password TEXT`);
+    }
+    catch (_) { }
     // Seed default user if not exists
-    const user = await dbGet('SELECT * FROM users LIMIT 1');
+    const defaultPasswordHash = hashPassword('password123');
+    const user = await dbGet('SELECT * FROM users WHERE id = ?', ['user_1']);
     if (!user) {
         // Generate a default mock contribution heatmap for the user
         // Format: "YYYY-MM-DD": submissions_count
@@ -108,7 +125,14 @@ async function initDatabase() {
                 mockHeatmap[dateStr] = Math.floor(Math.random() * 5) + 1;
             }
         }
-        await dbRun('INSERT INTO users (id, username, points, rating, accuracy, heatmaps) VALUES (?, ?, ?, ?, ?, ?)', ['user_1', 'Shobhit', 450, 1680, 78.4, JSON.stringify(mockHeatmap)]);
+        await dbRun('INSERT INTO users (id, username, email, password, points, rating, accuracy, heatmaps) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', ['user_1', 'Shobhit', 'shobhit@example.com', defaultPasswordHash, 450, 1680, 78.4, JSON.stringify(mockHeatmap)]);
+    }
+    else {
+        // If user_1 already exists from earlier runs, ensure email and password exist
+        const u = user;
+        if (!u.email || !u.password) {
+            await dbRun('UPDATE users SET email = COALESCE(email, ?), password = COALESCE(password, ?) WHERE id = ?', ['shobhit@example.com', defaultPasswordHash, 'user_1']);
+        }
     }
     // Seed default questions if table is empty
     const count = await dbGet('SELECT COUNT(*) as count FROM questions');

@@ -25,10 +25,11 @@ interface QuestionDetails {
 }
 
 export default function CodingWorkspace({ 
-  questionId, onBack 
+  questionId, onBack, userId 
 }: { 
   questionId: string;
   onBack: () => void;
+  userId?: string;
 }) {
   const [question, setQuestion] = useState<QuestionDetails | null>(null);
   const [language, setLanguage] = useState<'python' | 'javascript' | 'cpp' | 'java'>('javascript');
@@ -255,7 +256,8 @@ export default function CodingWorkspace({
           questionId,
           language,
           code,
-          customInput: isSubmit ? undefined : (customInput || question?.sample_input)
+          customInput: isSubmit ? undefined : (customInput || question?.sample_input),
+          userId
         })
       });
 

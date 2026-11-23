@@ -3,7 +3,7 @@ import cors from 'cors';
 import http from 'http';
 import dotenv from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
-import db, { initDatabase, dbAll, dbGet, dbRun } from './db/database';
+import db, { initDatabase, dbAll, dbGet, dbRun, hashPassword } from './db/database';
 import { executeCode } from './services/execution.service';
 import { analyzeCodeWithAI } from './services/ai.service';
 import { traceCodeExecution } from './services/trace.service';
@@ -22,6 +22,120 @@ const server = http.createServer(app);
 initSocketService(server);
 
 // --- REST API ENDPOINTS ---
+
+// --- 0. AUTHENTICATION ENDPOINTS ---
+
+// 0a. SIGN UP
+app.post('/api/auth/signup', async (req, res) => {
+  const { username, email, password } = req.body;
+
+  if (!username || !email || !password) {
+    return res.status(400).json({ error: 'Username, email and password are required' });
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Please enter a valid email address' });
+  }
+
+  try {
+    const existing = await dbGet(
+      'SELECT * FROM users WHERE LOWER(email) = LOWER(?) OR LOWER(username) = LOWER(?)',
+      [email.trim(), username.trim()]
+    ) as any;
+
+    if (existing) {
+      if (existing.email && existing.email.toLowerCase() === email.trim().toLowerCase()) {
+        return res.status(400).json({ error: 'An account with this email already exists' });
+      }
+      return res.status(400).json({ error: 'Username is already taken' });
+    }
+
+    const userId = `user_${uuidv4().substring(0, 8)}`;
+    const hashedPassword = hashPassword(password);
+    const today = new Date().toISOString().split('T')[0];
+    const initialHeatmap = JSON.stringify({ [today]: 1 });
+
+    await dbRun(
+      'INSERT INTO users (id, username, email, password, points, rating, accuracy, heatmaps) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [userId, username.trim(), email.trim(), hashedPassword, 100, 1200, 100.0, initialHeatmap]
+    );
+
+    const newUser = await dbGet(
+      'SELECT id, username, email, points, rating, accuracy FROM users WHERE id = ?',
+      [userId]
+    ) as any;
+
+    res.status(201).json({
+      user: newUser,
+      message: 'Account created successfully'
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 0b. LOGIN
+app.post('/api/auth/login', async (req, res) => {
+  const emailOrUsername = req.body.emailOrUsername || req.body.identifier || req.body.email || req.body.username;
+  const { password } = req.body;
+
+  if (!emailOrUsername || !password) {
+    return res.status(400).json({ error: 'Username/Email and password are required' });
+  }
+
+  try {
+    const user = await dbGet(
+      'SELECT * FROM users WHERE LOWER(email) = LOWER(?) OR LOWER(username) = LOWER(?)',
+      [emailOrUsername.trim(), emailOrUsername.trim()]
+    ) as any;
+
+    if (!user) {
+      return res.status(401).json({ error: 'User not found. Please sign up first.' });
+    }
+
+    const hashedPassword = hashPassword(password);
+    if (user.password && user.password !== hashedPassword) {
+      return res.status(401).json({ error: 'Incorrect password. Please try again.' });
+    }
+
+    res.json({
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        points: user.points,
+        rating: user.rating,
+        accuracy: user.accuracy
+      },
+      message: 'Login successful'
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 0c. GET CURRENT USER
+app.get('/api/auth/me/:userId', async (req, res) => {
+  try {
+    const user = await dbGet(
+      'SELECT id, username, email, points, rating, accuracy FROM users WHERE id = ?',
+      [req.params.userId]
+    ) as any;
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ user });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // 1. GET ALL QUESTIONS
 app.get('/api/questions', async (req, res) => {
@@ -63,7 +177,7 @@ app.get('/api/questions/:id', async (req, res) => {
 
 // 3. EXECUTE / SUBMIT CODE
 app.post('/api/submissions', async (req, res) => {
-  const { questionId, language, code, customInput } = req.body;
+  const { questionId, language, code, customInput, userId } = req.body;
 
   try {
     const question = await dbGet('SELECT * FROM questions WHERE id = ?', [questionId]);
@@ -100,7 +214,11 @@ app.post('/api/submissions', async (req, res) => {
       );
 
       // Update user contribution count in SQLite
-      const user = await dbGet('SELECT * FROM users WHERE id = ?', ['user_1']) as any;
+      const targetUserId = userId || 'user_1';
+      let user = await dbGet('SELECT * FROM users WHERE id = ?', [targetUserId]) as any;
+      if (!user) {
+        user = await dbGet('SELECT * FROM users WHERE id = ?', ['user_1']) as any;
+      }
       if (user) {
         const heatmap = JSON.parse(user.heatmaps || '{}');
         const today = new Date().toISOString().split('T')[0];
@@ -117,7 +235,7 @@ app.post('/api/submissions', async (req, res) => {
 
         await dbRun(
           'UPDATE users SET points = ?, rating = ?, heatmaps = ? WHERE id = ?',
-          [newPoints, newRating, JSON.stringify(heatmap), 'user_1']
+          [newPoints, newRating, JSON.stringify(heatmap), user.id]
         );
       }
     }
@@ -463,7 +581,11 @@ app.post('/api/ai/trace', async (req, res) => {
 // 9. GET USER DASHBOARD STATS
 app.get('/api/dashboard/:userId', async (req, res) => {
   try {
-    const user = await dbGet('SELECT * FROM users WHERE id = ?', ['user_1']) as any;
+    const requestedId = req.params.userId || 'user_1';
+    let user = await dbGet('SELECT * FROM users WHERE id = ?', [requestedId]) as any;
+    if (!user) {
+      user = await dbGet('SELECT * FROM users WHERE id = ?', ['user_1']) as any;
+    }
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -476,7 +598,9 @@ app.get('/api/dashboard/:userId', async (req, res) => {
 
     res.json({
       profile: {
+        id: user.id,
         username: user.username,
+        email: user.email,
         points: user.points,
         rating: user.rating,
         accuracy: user.accuracy

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { 
   LayoutDashboard, BookOpen, Users, Mic, Smile, 
-  Map, Award, Zap, Database
+  Map, Award, Zap, Database, LogOut
 } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import QuestionBank from './pages/QuestionBank';
@@ -11,12 +11,34 @@ import AIInterviewer from './pages/AIInterviewer';
 import BehavioralMock from './pages/BehavioralMock';
 import RoadmapGenerator from './pages/RoadmapGenerator';
 import SystemDesignRound from './pages/SystemDesignRound';
+import AuthPage, { AuthUser } from './pages/AuthPage';
 
 type Page = 'dashboard' | 'questions' | 'coding' | 'collab' | 'interview' | 'behavioral' | 'roadmap' | 'systemdesign';
 
 export default function App() {
+  // Authentication State
+  const [user, setUser] = useState<AuthUser | null>(() => {
+    try {
+      const saved = localStorage.getItem('codeai_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [selectedQuestionId, setSelectedQuestionId] = useState<string>('two-sum');
+
+  const handleLoginSuccess = (authUser: AuthUser) => {
+    setUser(authUser);
+    localStorage.setItem('codeai_user', JSON.stringify(authUser));
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem('codeai_user');
+    setActivePage('dashboard');
+  };
 
   // Trigger solve coding page
   const handleSolveQuestion = (qId: string) => {
@@ -30,11 +52,16 @@ export default function App() {
     setActivePage('interview');
   };
 
+  // If user is not authenticated, render Login & Sign-Up Screen
+  if (!user) {
+    return <AuthPage onLoginSuccess={handleLoginSuccess} />;
+  }
+
   // Navigations switcher
   const renderActivePage = () => {
     switch (activePage) {
       case 'dashboard':
-        return <Dashboard onNavigate={(page) => setActivePage(page as Page)} />;
+        return <Dashboard onNavigate={(page) => setActivePage(page as Page)} userId={user.id} />;
       case 'questions':
         return (
           <QuestionBank 
@@ -47,10 +74,11 @@ export default function App() {
           <CodingWorkspace 
             questionId={selectedQuestionId} 
             onBack={() => setActivePage('questions')} 
+            userId={user.id}
           />
         );
       case 'collab':
-        return <CollabRoom />;
+        return <CollabRoom defaultUsername={user.username} />;
       case 'interview':
         return <AIInterviewer />;
       case 'behavioral':
@@ -60,7 +88,7 @@ export default function App() {
       case 'systemdesign':
         return <SystemDesignRound />;
       default:
-        return <Dashboard onNavigate={(page) => setActivePage(page as Page)} />;
+        return <Dashboard onNavigate={(page) => setActivePage(page as Page)} userId={user.id} />;
     }
   };
 
@@ -73,6 +101,8 @@ export default function App() {
     { id: 'behavioral', label: 'Behavioral Mock', icon: Smile },
     { id: 'roadmap', label: 'Career Roadmap', icon: Map },
   ];
+
+  const userInitials = (user.username ? user.username.slice(0, 2) : 'US').toUpperCase();
 
   return (
     <div className="flex h-screen overflow-hidden bg-dark-950 font-sans text-slate-200">
@@ -115,21 +145,27 @@ export default function App() {
         </div>
 
         {/* PROFILE OVERVIEW CARD */}
-        <div className="p-6 border-t border-slate-850 bg-dark-900/50 space-y-4">
+        <div className="p-4 border-t border-slate-850 bg-dark-900/60 space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <div className="h-9 w-9 rounded-full bg-brand-purple/20 border border-brand-purple/35 flex items-center justify-center text-xs font-bold text-brand-accent uppercase">
-                SH
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="h-9 w-9 rounded-full bg-brand-purple/20 border border-brand-purple/35 flex items-center justify-center text-xs font-bold text-brand-accent uppercase flex-shrink-0">
+                {userInitials}
               </div>
-              <div>
-                <h3 className="text-xs font-bold text-slate-200 leading-normal">Shobhit</h3>
+              <div className="min-w-0">
+                <h3 className="text-xs font-bold text-slate-200 leading-normal truncate">{user.username}</h3>
                 <span className="text-[9px] font-bold text-slate-500 uppercase flex items-center gap-1">
-                  <Award className="h-3 w-3 text-amber-500" /> Rating: 1680
+                  <Award className="h-3 w-3 text-amber-500 flex-shrink-0" /> Rating: {user.rating || 1200}
                 </span>
               </div>
             </div>
             
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" title="Platform Server Connected" />
+            <button
+              onClick={handleLogout}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition flex-shrink-0"
+              title="Log Out"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
         </div>
 
@@ -146,19 +182,29 @@ export default function App() {
             <h2 className="text-sm font-black text-white uppercase tracking-wider">CodeAI</h2>
           </div>
 
-          <div className="flex gap-2">
-            {navItems.map(item => (
-              <button 
-                key={item.id}
-                onClick={() => setActivePage(item.id as Page)}
-                className={`p-2 rounded-lg border ${
-                  activePage === item.id ? 'bg-brand-purple/10 border-brand-purple/35 text-brand-accent' : 'bg-transparent border-transparent text-slate-400'
-                }`}
-                title={item.label}
-              >
-                <item.icon className="h-4 w-4" />
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1">
+              {navItems.map(item => (
+                <button 
+                  key={item.id}
+                  onClick={() => setActivePage(item.id as Page)}
+                  className={`p-2 rounded-lg border ${
+                    activePage === item.id ? 'bg-brand-purple/10 border-brand-purple/35 text-brand-accent' : 'bg-transparent border-transparent text-slate-400'
+                  }`}
+                  title={item.label}
+                >
+                  <item.icon className="h-4 w-4" />
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={handleLogout}
+              className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition"
+              title="Log Out"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
         </header>
 
