@@ -11,6 +11,7 @@
     "start": "node backend/dist/index.js",
     "dev:backend": "npm --prefix backend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
+    "tunnel": ".\\bin\\cloudflared.exe tunnel --url http://localhost:5000",
     "share": "npx localtunnel --port 5000"
   }
 }
