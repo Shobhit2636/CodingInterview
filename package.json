@@ -5,9 +5,10 @@
   "description": "AI-Powered Coding and System Design Interview Platform",
   "scripts": {
     "install:all": "npm --prefix backend install && npm --prefix frontend install",
+    "postinstall": "npm run install:all",
     "build:frontend": "npm --prefix frontend run build",
     "build:backend": "npm --prefix backend run build",
-    "build": "npm run build:frontend && npm run build:backend",
+    "build": "npm run install:all && npm run build:frontend && npm run build:backend",
     "start": "node backend/dist/index.js",
     "dev:backend": "npm --prefix backend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
