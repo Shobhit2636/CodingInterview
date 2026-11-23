@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import http from 'http';
+import path from 'path';
+import fs from 'fs';
 import dotenv from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
 import db, { initDatabase, dbAll, dbGet, dbRun, hashPassword } from './db/database';
@@ -614,11 +616,25 @@ app.get('/api/dashboard/:userId', async (req, res) => {
   }
 });
 
+// --- STATIC FRONTEND & PRODUCTION SERVING ---
+const frontendDistPath = path.resolve(__dirname, '../../frontend/dist');
+if (fs.existsSync(frontendDistPath)) {
+  console.log(`[Production] Serving static frontend from: ${frontendDistPath}`);
+  app.use(express.static(frontendDistPath));
+
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) {
+      return next();
+    }
+    res.sendFile(path.join(frontendDistPath, 'index.html'));
+  });
+}
+
 // --- SERVER STARTUP ---
 async function startServer() {
   await initDatabase();
-  server.listen(port, () => {
-    console.log(`Express API Server running on port ${port}`);
+  server.listen(Number(port), '0.0.0.0', () => {
+    console.log(`Express API Server running on port ${port} (0.0.0.0)`);
   });
 }
 

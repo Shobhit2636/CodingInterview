@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { API_BASE_URL } from '../apiConfig';
 import { 
   Sparkles, RefreshCw, Mic, MicOff, Video, Database, Layers, Send, LogOut
 } from 'lucide-react';
@@ -188,7 +189,7 @@ export default function SystemDesignRound() {
     setLoadingReply(true);
 
     try {
-      const res = await fetch('http://localhost:5000/api/ai/interview', {
+      const res = await fetch(`${API_BASE_URL}/api/ai/interview`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -223,7 +224,7 @@ export default function SystemDesignRound() {
 
     setLoadingReply(true);
     try {
-      const res = await fetch('http://localhost:5000/api/ai/systemdesign/report', {
+      const res = await fetch(`${API_BASE_URL}/api/ai/systemdesign/report`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ questionId: selectedQ, history, whiteboardText })

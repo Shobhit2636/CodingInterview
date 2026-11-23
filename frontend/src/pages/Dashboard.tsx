@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { API_BASE_URL } from '../apiConfig';
 import { 
   Award, CheckCircle2, Target, Calendar, 
   Sparkles, ArrowRight, Zap, RefreshCw, BarChart2
@@ -27,7 +28,7 @@ export default function Dashboard({ onNavigate, userId }: { onNavigate: (page: s
   const fetchStats = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`http://localhost:5000/api/dashboard/${userId || 'user_1'}`);
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/${userId || 'user_1'}`);
       if (res.ok) {
         const stats = await res.json();
         setData(stats);

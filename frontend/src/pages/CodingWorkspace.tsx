@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import Editor from '@monaco-editor/react';
+import { API_BASE_URL } from '../apiConfig';
 import { 
   Play, Send, Code, ArrowLeft,
   Sparkles, RefreshCw, CheckCircle2, AlertCircle, Clock, Zap, BrainCircuit
@@ -92,7 +93,7 @@ export default function CodingWorkspace({
     setLoadingTrace(true);
     setConsoleTab('trace');
     try {
-      const res = await fetch('http://localhost:5000/api/ai/trace', {
+      const res = await fetch(`${API_BASE_URL}/api/ai/trace`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -163,7 +164,7 @@ export default function CodingWorkspace({
 
   const fetchQuestionDetails = async () => {
     try {
-      const res = await fetch(`http://localhost:5000/api/questions/${questionId}`);
+      const res = await fetch(`${API_BASE_URL}/api/questions/${questionId}`);
       if (res.ok) {
         const q = await res.json();
         setQuestion(q);
@@ -249,7 +250,7 @@ export default function CodingWorkspace({
       else setRunning(true);
       setConsoleOutput(null);
 
-      const res = await fetch('http://localhost:5000/api/submissions', {
+      const res = await fetch(`${API_BASE_URL}/api/submissions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -298,7 +299,7 @@ export default function CodingWorkspace({
     }
     try {
       setLoadingHint(true);
-      const res = await fetch('http://localhost:5000/api/ai/hint', {
+      const res = await fetch(`${API_BASE_URL}/api/ai/hint`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ questionId, level, code })
@@ -326,7 +327,7 @@ export default function CodingWorkspace({
     try {
       setLoadingReview(true);
       setAiReview(null);
-      const res = await fetch('http://localhost:5000/api/ai/review', {
+      const res = await fetch(`${API_BASE_URL}/api/ai/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ questionId, language, code })

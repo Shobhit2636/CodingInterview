@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { API_BASE_URL } from '../apiConfig';
 import { 
   Mic, MicOff, RefreshCw, Award, 
   Sparkles, Smile, ArrowRight, AlertCircle, Send
@@ -143,7 +144,7 @@ export default function BehavioralMock() {
 
   const finishSession = async (finalTurns: BehavioralTurn[]) => {
     try {
-      const reportRes = await fetch('http://localhost:5000/api/ai/behavioral/report', {
+      const reportRes = await fetch(`${API_BASE_URL}/api/ai/behavioral/report`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ turns: finalTurns })
@@ -177,7 +178,7 @@ export default function BehavioralMock() {
     setLoading(true);
 
     try {
-      const res = await fetch('http://localhost:5000/api/ai/behavioral', {
+      const res = await fetch(`${API_BASE_URL}/api/ai/behavioral`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

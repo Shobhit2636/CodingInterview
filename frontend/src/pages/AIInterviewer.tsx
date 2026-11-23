@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
+import { API_BASE_URL } from '../apiConfig';
 import { 
   Mic, MicOff, Send, BrainCircuit, RefreshCw,
   Video, User, Sparkles, LogOut, Code, Zap, Volume2
@@ -167,7 +168,7 @@ export default function AIInterviewer() {
     loadingReplyRef.current = true;
 
     try {
-      const res = await fetch('http://localhost:5000/api/ai/interview', {
+      const res = await fetch(`${API_BASE_URL}/api/ai/interview`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -304,7 +305,7 @@ export default function AIInterviewer() {
 
   const fetchQuestions = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/questions');
+      const res = await fetch(`${API_BASE_URL}/api/questions`);
       if (res.ok) {
         const data = await res.json();
         setQuestions(data);
@@ -370,7 +371,7 @@ export default function AIInterviewer() {
 
     setLoadingReply(true);
     try {
-      const res = await fetch('http://localhost:5000/api/ai/interview/report', {
+      const res = await fetch(`${API_BASE_URL}/api/ai/interview/report`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

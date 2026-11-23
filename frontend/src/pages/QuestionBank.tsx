@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { API_BASE_URL } from '../apiConfig';
 import { 
   Search, BookOpen, ChevronRight, 
   Tag, Mic, RefreshCw
@@ -28,7 +29,7 @@ export default function QuestionBank({
   const fetchQuestions = async () => {
     try {
       setLoading(true);
-      const res = await fetch('http://localhost:5000/api/questions');
+      const res = await fetch(`${API_BASE_URL}/api/questions`);
       if (res.ok) {
         const list = await res.json();
         setQuestions(list);

@@ -6,6 +6,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const http_1 = __importDefault(require("http"));
+const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const uuid_1 = require("uuid");
 const database_1 = require("./db/database");
@@ -544,11 +546,23 @@ app.get('/api/dashboard/:userId', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+// --- STATIC FRONTEND & PRODUCTION SERVING ---
+const frontendDistPath = path_1.default.resolve(__dirname, '../../frontend/dist');
+if (fs_1.default.existsSync(frontendDistPath)) {
+    console.log(`[Production] Serving static frontend from: ${frontendDistPath}`);
+    app.use(express_1.default.static(frontendDistPath));
+    app.get('*', (req, res, next) => {
+        if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) {
+            return next();
+        }
+        res.sendFile(path_1.default.join(frontendDistPath, 'index.html'));
+    });
+}
 // --- SERVER STARTUP ---
 async function startServer() {
     await (0, database_1.initDatabase)();
-    server.listen(port, () => {
-        console.log(`Express API Server running on port ${port}`);
+    server.listen(Number(port), '0.0.0.0', () => {
+        console.log(`Express API Server running on port ${port} (0.0.0.0)`);
     });
 }
 startServer().catch((err) => {

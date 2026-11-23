@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
 import { io, Socket } from 'socket.io-client';
+import { SOCKET_URL } from '../apiConfig';
 import { 
   Users, MessageSquare, Send, Mic,
   Copy, Check, ArrowRight, Zap, PhoneCall, PhoneOff
@@ -142,7 +143,7 @@ export default function CollabRoom({ defaultUsername = 'Shobhit' }: { defaultUse
     e.preventDefault();
     if (!roomId.trim() || !username.trim()) return;
 
-    const newSocket = io('http://localhost:5000');
+    const newSocket = io(SOCKET_URL);
     socketRef.current = newSocket;
 
     newSocket.emit('join-room', { 

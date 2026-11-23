@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { API_BASE_URL } from '../apiConfig';
 import { 
   Zap, Lock, Mail, User, ArrowRight, Eye, EyeOff, 
   Sparkles, AlertCircle, CheckCircle2, ShieldCheck, Code2, Users, Mic
 } from 'lucide-react';
+import InstallAppButton from '../components/InstallAppButton';
 
 export interface AuthUser {
   id: string;
@@ -52,7 +54,7 @@ export default function AuthPage({ onLoginSuccess }: AuthPageProps) {
 
     try {
       if (isLogin) {
-        const res = await fetch('http://localhost:5000/api/auth/login', {
+        const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -71,7 +73,7 @@ export default function AuthPage({ onLoginSuccess }: AuthPageProps) {
           onLoginSuccess(data.user);
         }, 500);
       } else {
-        const res = await fetch('http://localhost:5000/api/auth/signup', {
+        const res = await fetch(`${API_BASE_URL}/api/auth/signup`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -103,7 +105,7 @@ export default function AuthPage({ onLoginSuccess }: AuthPageProps) {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/api/auth/login', {
+      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -362,6 +364,8 @@ export default function AuthPage({ onLoginSuccess }: AuthPageProps) {
                 <Zap className="h-3.5 w-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
                 <span>Continue as Demo User (Shobhit)</span>
               </button>
+
+              <InstallAppButton />
             </div>
 
           </div>

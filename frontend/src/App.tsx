@@ -12,6 +12,7 @@ import BehavioralMock from './pages/BehavioralMock';
 import RoadmapGenerator from './pages/RoadmapGenerator';
 import SystemDesignRound from './pages/SystemDesignRound';
 import AuthPage, { AuthUser } from './pages/AuthPage';
+import InstallAppButton from './components/InstallAppButton';
 
 type Page = 'dashboard' | 'questions' | 'coding' | 'collab' | 'interview' | 'behavioral' | 'roadmap' | 'systemdesign';
 
@@ -144,6 +145,11 @@ export default function App() {
           </nav>
         </div>
 
+        {/* INSTALL APP PROMPT */}
+        <div className="px-5 pb-2">
+          <InstallAppButton />
+        </div>
+
         {/* PROFILE OVERVIEW CARD */}
         <div className="p-4 border-t border-slate-850 bg-dark-900/60 space-y-3">
           <div className="flex items-center justify-between gap-3">
@@ -174,15 +180,16 @@ export default function App() {
       {/* MOBILE HEADER FOR RESPONSIVENESS */}
       <div className="flex flex-col flex-1 h-full overflow-hidden">
         
-        <header className="h-16 border-b border-slate-800 bg-dark-900 flex items-center justify-between px-6 md:hidden">
-          <div className="flex items-center gap-2.5">
+        <header className="h-16 border-b border-slate-800 bg-dark-900 flex items-center justify-between px-4 md:hidden gap-2">
+          <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-brand-purple/10 flex items-center justify-center">
               <Zap className="h-4 w-4 text-brand-accent" />
             </div>
-            <h2 className="text-sm font-black text-white uppercase tracking-wider">CodeAI</h2>
+            <h2 className="text-sm font-black text-white uppercase tracking-wider hidden sm:block">CodeAI</h2>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 overflow-x-auto py-1">
+            <InstallAppButton className="!py-1.5 !px-2.5 !text-[10px]" />
             <div className="flex gap-1">
               {navItems.map(item => (
                 <button 
