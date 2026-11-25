@@ -47,8 +47,19 @@ export default function Dashboard({ onNavigate, userId }: { onNavigate: (page: s
         }
       }
 
+      let savedUser: any = null;
+      try {
+        const raw = localStorage.getItem('codeai_user');
+        if (raw) savedUser = JSON.parse(raw);
+      } catch (_) {}
+
       setData({
-        profile: { username: 'Shobhit', points: 580, rating: 1680, accuracy: 81.2 },
+        profile: {
+          username: savedUser?.username || 'Shobhit',
+          points: savedUser?.points || 100,
+          rating: savedUser?.rating || 1200,
+          accuracy: savedUser?.accuracy || 100.0
+        },
         heatmap: mockHeatmap,
         solved: 24,
         stats: [
