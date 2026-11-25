@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "CodeAI",
+    "slug": "codeai-interview-platform",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#090d16",
+    "primaryColor": "#7c3aed",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.codeai.interviewplatform"
+    },
+    "android": {
+      "package": "com.codeai.interviewplatform",
+      "adaptiveIcon": {
+        "backgroundColor": "#090d16",
+        "foregroundImage": "./assets/android-icon-foreground.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
