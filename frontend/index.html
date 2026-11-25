@@ -23,10 +23,12 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      // Register PWA Service Worker
+      // Register PWA Service Worker with automatic update check
       if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch((err) => {
+          navigator.serviceWorker.register('/sw.js?v=2').then((reg) => {
+            reg.update();
+          }).catch((err) => {
             console.log('SW registration skipped or error:', err);
           });
         });

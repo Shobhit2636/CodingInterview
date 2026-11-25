@@ -65,10 +65,12 @@ export default function AuthPage({ onLoginSuccess }: AuthPageProps) {
             })
           });
 
-          const contentType = res.headers.get('content-type');
-          if (res.ok && contentType && contentType.includes('application/json')) {
-            const data = await res.json();
-            if (data.user) loggedInUser = data.user;
+          const contentType = res.headers.get('content-type') || '';
+          if (res.ok && contentType.includes('application/json')) {
+            try {
+              const data = await res.json();
+              if (data && data.user) loggedInUser = data.user;
+            } catch (_) {}
           }
         } catch {
           // Server offline / Vercel static hosting fallback
@@ -128,13 +130,19 @@ export default function AuthPage({ onLoginSuccess }: AuthPageProps) {
             })
           });
 
-          const contentType = res.headers.get('content-type');
-          if (res.ok && contentType && contentType.includes('application/json')) {
-            const data = await res.json();
-            if (data.user) signedUpUser = data.user;
-          } else if (!res.ok && contentType && contentType.includes('application/json')) {
-            const errData = await res.json();
-            throw new Error(errData.error || 'Sign up failed');
+          const contentType = res.headers.get('content-type') || '';
+          if (res.ok && contentType.includes('application/json')) {
+            try {
+              const data = await res.json();
+              if (data && data.user) signedUpUser = data.user;
+            } catch (_) {}
+          } else if (!res.ok && contentType.includes('application/json')) {
+            try {
+              const errData = await res.json();
+              if (errData && errData.error) throw new Error(errData.error);
+            } catch (err: any) {
+              if (err.message && !err.message.includes('JSON')) throw err;
+            }
           }
         } catch (fetchErr: any) {
           if (fetchErr.message && !fetchErr.message.includes('fetch') && !fetchErr.message.includes('JSON')) {
