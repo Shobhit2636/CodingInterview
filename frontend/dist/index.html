@@ -18,16 +18,18 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="/assets/index-BoGaj28P.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-CngwmkaO.css">
+    <script type="module" crossorigin src="/assets/index-Ck7QQWqJ.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-BbwqhdGu.css">
   </head>
   <body class="bg-dark-950 text-slate-100 font-sans selection:bg-brand-violet/30 selection:text-brand-accent overflow-x-hidden antialiased">
     <div id="root"></div>
     <script>
-      // Register PWA Service Worker
+      // Register PWA Service Worker with automatic update check
       if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch((err) => {
+          navigator.serviceWorker.register('/sw.js?v=2').then((reg) => {
+            reg.update();
+          }).catch((err) => {
             console.log('SW registration skipped or error:', err);
           });
         });
