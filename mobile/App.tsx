@@ -10,11 +10,12 @@ import DashboardScreen from './src/screens/DashboardScreen';
 import QuestionBankScreen from './src/screens/QuestionBankScreen';
 import CodeEditorScreen from './src/screens/CodeEditorScreen';
 import AIVoiceMockScreen from './src/screens/AIVoiceMockScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
-  const [currentScreen, setCurrentScreen] = useState<'dashboard' | 'questions' | 'editor' | 'interview'>('dashboard');
+  const [currentScreen, setCurrentScreen] = useState<'dashboard' | 'questions' | 'editor' | 'interview' | 'profile'>('dashboard');
   const [selectedProblem, setSelectedProblem] = useState<Problem>(SAMPLE_PROBLEMS[0]);
 
   useEffect(() => {
@@ -101,6 +102,14 @@ export default function App() {
             onBack={() => setCurrentScreen('dashboard')}
           />
         )}
+
+        {currentScreen === 'profile' && (
+          <ProfileScreen
+            user={user}
+            onLogout={handleLogout}
+            onBack={() => setCurrentScreen('dashboard')}
+          />
+        )}
       </View>
 
       {/* Bottom Navigation Bar */}
@@ -140,11 +149,11 @@ export default function App() {
 
           <TouchableOpacity
             style={styles.navItem}
-            onPress={handleLogout}
+            onPress={() => setCurrentScreen('profile')}
           >
-            <Text style={styles.navIcon}>🚪</Text>
-            <Text style={styles.navLabel}>
-              Logout
+            <Text style={styles.navIcon}>👤</Text>
+            <Text style={[styles.navLabel, currentScreen === 'profile' && styles.navLabelActive]}>
+              Profile
             </Text>
           </TouchableOpacity>
         </View>

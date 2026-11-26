@@ -6,7 +6,8 @@ import {
   SafeAreaView,
   ScrollView,
   TouchableOpacity,
-  StatusBar
+  StatusBar,
+  Alert
 } from 'react-native';
 import { COLORS, SPACING } from '../constants/theme';
 import { User } from '../types';
@@ -31,9 +32,27 @@ export default function DashboardScreen({ user, onNavigate, onLogout }: Dashboar
             <Text style={styles.headerTitle}>Welcome back,</Text>
             <Text style={styles.headerName}>{user.name || 'Shobhit11'}!</Text>
           </View>
-          <TouchableOpacity style={styles.avatarBtn} onPress={onLogout}>
-            <Text style={styles.avatarText}>{(user.name || 'S').charAt(0).toUpperCase()}</Text>
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.logoutHeaderBtn}
+              onPress={() => {
+                Alert.alert(
+                  'Log Out',
+                  'Are you sure you want to log out of CodeAI?',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Log Out', style: 'destructive', onPress: onLogout }
+                  ]
+                );
+              }}
+            >
+              <Text style={styles.logoutHeaderBtnText}>🚪 Logout</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.avatarBtn} onPress={() => onNavigate('profile')}>
+              <Text style={styles.avatarText}>{(user.name || 'S').charAt(0).toUpperCase()}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Hero Card */}
@@ -180,6 +199,24 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '800',
     color: COLORS.textWhite,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  logoutHeaderBtn: {
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+  },
+  logoutHeaderBtnText: {
+    color: '#ef4444',
+    fontSize: 11,
+    fontWeight: '700',
   },
   avatarBtn: {
     width: 44,
