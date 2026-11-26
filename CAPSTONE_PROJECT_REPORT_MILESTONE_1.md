@@ -227,7 +227,7 @@ The proposed CodeAI platform has been engineered into functional web and mobile 
 #### A. Central Analytics Dashboard
 The central dashboard provides candidates with quantitative tracking of their interview readiness. It features platform ratings, points earned, problem counts, submission accuracy, a 5-axis Skill Strengths Analysis radar chart (Dynamic Programming, Graphs, Arrays, Strings, Sliding Window), and a Submission Outcomes distribution chart. The header and sidebar include prominent **Log Out** controls.
 
-![Figure 1: CodeAI Production Web Dashboard with Progress Radar and Performance Metrics](C:/Users/Shobhit/.gemini/antigravity/brain/a3ebe6aa-bb81-4980-acf8-9148cb57a9d4/.user_uploaded/media_1795702788793_459948a8.jpg)
+![Figure 1: CodeAI Production Web Dashboard with Progress Radar and Performance Metrics](./docs/screenshots/figure1_web_dashboard.jpg)
 *Figure 1: CodeAI Production Web Dashboard — Displaying user rating (1224), points, skill radar chart, and prominent Log Out controls.*
 
 ---
@@ -235,7 +235,7 @@ The central dashboard provides candidates with quantitative tracking of their in
 #### B. Curated Coding Question Bank
 The Question Bank categorizes algorithmic problems by difficulty (Easy, Medium, Hard), topic tags (Array, Hash Table, Dynamic Programming, Graph), and hiring companies (Google, Amazon, Microsoft). Each card provides one-click options to either launch the **Coding Sandbox** or start an **AI Voice Interview** directly on that problem.
 
-![Figure 2: Curated Coding Question Bank with Difficulty and Company Metadata](C:/Users/Shobhit/.gemini/antigravity/brain/a3ebe6aa-bb81-4980-acf8-9148cb57a9d4/.user_uploaded/media_1795702793557_60a84e08.jpg)
+![Figure 2: Curated Coding Question Bank with Difficulty and Company Metadata](./docs/screenshots/figure2_question_bank.jpg)
 *Figure 2: Coding Question Bank — Filterable list of curated FAANG interview challenges with company tags.*
 
 ---
@@ -243,7 +243,7 @@ The Question Bank categorizes algorithmic problems by difficulty (Easy, Medium, 
 #### C. Real-Time Collaborative Interview Room
 Powered by Socket.IO, this module allows peer candidates to enter shared virtual rooms using unique Session IDs. It provides dual-cursor live code synchronization, real-time audio chat capabilities, and shared problem discussion.
 
-![Figure 3: Collaborative Interview Room with Real-Time Session Initialization](C:/Users/Shobhit/.gemini/antigravity/brain/a3ebe6aa-bb81-4980-acf8-9148cb57a9d4/.user_uploaded/media_1795702798186_daa263e4.png)
+![Figure 3: Collaborative Interview Room with Real-Time Session Initialization](./docs/screenshots/figure3_collab_room.png)
 *Figure 3: Collaborative Interview Room — Interface for initializing shared boards and live multi-cursor peer coding.*
 
 ---
@@ -251,7 +251,7 @@ Powered by Socket.IO, this module allows peer candidates to enter shared virtual
 #### D. AI Spoken Voice Interviewer
 The voice interview module replicates a high-pressure FAANG technical interview. Candidates select target problems, choose interviewer voice accents (e.g., English India / US), and interact orally. The AI interviewer synthesizes speech, listens via speech recognition, and generates evaluation reports on candidate communication and code logic.
 
-![Figure 4: AI Voice Interviewer Module with Voice Accent and Speech Recognition](C:/Users/Shobhit/.gemini/antigravity/brain/a3ebe6aa-bb81-4980-acf8-9148cb57a9d4/.user_uploaded/media_1795702802740_19c0020b.png)
+![Figure 4: AI Voice Interviewer Module with Voice Accent and Speech Recognition](./docs/screenshots/figure4_ai_voice_interviewer.png)
 *Figure 4: AI Voice Interviewer — Voice intake, dialect selection, and real-time speech assessment interface.*
 
 ---
@@ -259,7 +259,7 @@ The voice interview module replicates a high-pressure FAANG technical interview.
 #### E. AI System Design Round
 System design interviews assess distributed systems architecture. CodeAI provides an architectural prompt intake (e.g., Design TinyURL, Scalable Notification Service) with explicit traffic, sharding, and consistency constraints evaluated by AI models.
 
-![Figure 5: AI System Design Round with Architectural Prompts and Scaling Goals](C:/Users/Shobhit/.gemini/antigravity/brain/a3ebe6aa-bb81-4980-acf8-9148cb57a9d4/.user_uploaded/media_1795702807094_75daf3f7.jpg)
+![Figure 5: AI System Design Round with Architectural Prompts and Scaling Goals](./docs/screenshots/figure5_system_design.jpg)
 *Figure 5: AI System Design Studio — Formulating high-level system requirements, scaling goals, and distributed critiques.*
 
 ---
@@ -267,7 +267,7 @@ System design interviews assess distributed systems architecture. CodeAI provide
 #### F. AI Behavioral Mock Round (STAR Method)
 Evaluates leadership, teamwork, and cultural alignment using the structured **STAR methodology** (Situation, Task, Action, Result). The AI interviewer prompts candidates on conflict resolution and project deadlines, generating rubric-based feedback.
 
-![Figure 6: AI Mock Behavioral Round with STAR Method Assessment](C:/Users/Shobhit/.gemini/antigravity/brain/a3ebe6aa-bb81-4980-acf8-9148cb57a9d4/.user_uploaded/media_1795702812122_30fda50a.png)
+![Figure 6: AI Mock Behavioral Round with STAR Method Assessment](./docs/screenshots/figure6_behavioral_mock.png)
 *Figure 6: AI Mock Behavioral Round — Candidate evaluation using structured managerial interview scenarios.*
 
 ---
@@ -275,7 +275,7 @@ Evaluates leadership, teamwork, and cultural alignment using the structured **ST
 #### G. AI Career Roadmap Generator
 Generates personalized, day-by-day technical preparation roadmaps. Candidates input their target company (e.g., Google) and weak subjects (e.g., Dynamic Programming, Graphs) along with resume highlights to receive an adaptive learning schedule.
 
-![Figure 7: AI Career Roadmap Generator for Targeted FAANG Preparation](C:/Users/Shobhit/.gemini/antigravity/brain/a3ebe6aa-bb81-4980-acf8-9148cb57a9d4/.user_uploaded/media_1795702817139_a88c07aa.png)
+![Figure 7: AI Career Roadmap Generator for Targeted FAANG Preparation](./docs/screenshots/figure7_career_roadmap.png)
 *Figure 7: AI Career Roadmap Generator — Custom pathway synthesizer based on target employer and candidate weaknesses.*
 
 ---
@@ -287,7 +287,7 @@ To ensure practice mobility, CodeAI was built as a dedicated cross-platform mobi
 #### A. Mobile Dashboard & Header Logout
 The mobile dashboard features touch-optimized stat cards, rating badges, active streak counters, and a bottom navigation bar. An explicit **Logout button** with a confirmation dialog is positioned at the top header for instant session control.
 
-![Figure 8: React Native Mobile Dashboard with Native Metrics and Header Logout](C:/Users/Shobhit/.gemini/antigravity/brain/a3ebe6aa-bb81-4980-acf8-9148cb57a9d4/.user_uploaded/media_1795703107471_a4bc7a0f.jpg)
+![Figure 8: React Native Mobile Dashboard with Native Metrics and Header Logout](./docs/screenshots/figure8_mobile_dashboard.jpg)
 *Figure 8: React Native Mobile App — Mobile Dashboard with touch stats cards, bottom tabs, and top header Logout.*
 
 ---
@@ -295,7 +295,7 @@ The mobile dashboard features touch-optimized stat cards, rating badges, active 
 #### B. Mobile Coding Questions Catalog
 The mobile Question Bank features difficulty filter chips (All, Easy, Medium, Hard), search bars, acceptance rate indicators, and solved status badges.
 
-![Figure 9: React Native Mobile Coding Question Catalog with Multi-Filter Tabs](C:/Users/Shobhit/.gemini/antigravity/brain/a3ebe6aa-bb81-4980-acf8-9148cb57a9d4/.user_uploaded/media_1795703113320_0d4de715.jpg)
+![Figure 9: React Native Mobile Coding Question Catalog with Multi-Filter Tabs](./docs/screenshots/figure9_mobile_questions.jpg)
 *Figure 9: Mobile Question Bank — Algorithmic problem list with responsive filter chips and status indicators.*
 
 ---
@@ -303,7 +303,7 @@ The mobile Question Bank features difficulty filter chips (All, Easy, Medium, Ha
 #### C. Mobile User Profile & Session Security
 The Profile screen displays candidate identity, email, active streaks, account performance statistics, and cloud synchronization status. A prominent **Log Out of CodeAI** button allows users to end sessions securely.
 
-![Figure 10: React Native Mobile User Profile and Session Management](C:/Users/Shobhit/.gemini/antigravity/brain/a3ebe6aa-bb81-4980-acf8-9148cb57a9d4/.user_uploaded/media_1795703119572_cb6aa681.jpg)
+![Figure 10: React Native Mobile User Profile and Session Management](./docs/screenshots/figure10_mobile_profile.jpg)
 *Figure 10: Mobile Profile Screen — Detailed performance metrics, cloud sync confirmation, and session security.*
 
 ---
@@ -311,7 +311,7 @@ The Profile screen displays candidate identity, email, active streaks, account p
 #### D. Mobile Spoken AI Voice Interviewer
 The mobile AI Voice Interviewer provides an on-the-go conversational practice experience. It includes an animated sound pulse visualizer, push-to-talk microphone toggling, and live dialogue transcription.
 
-![Figure 11: React Native Mobile AI Voice Interviewer with Animated Speech Visualizer](C:/Users/Shobhit/.gemini/antigravity/brain/a3ebe6aa-bb81-4980-acf8-9148cb57a9d4/.user_uploaded/media_1795703124798_2f7dc555.jpg)
+![Figure 11: React Native Mobile AI Voice Interviewer with Animated Speech Visualizer](./docs/screenshots/figure11_mobile_ai_voice.jpg)
 *Figure 11: Mobile AI Voice Mock — Real-time conversational interview dialogue with animated audio pulse feedback.*
 
 ---
