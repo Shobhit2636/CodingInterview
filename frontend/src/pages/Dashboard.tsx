@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { API_BASE_URL } from '../apiConfig';
 import { 
   Award, CheckCircle2, Target, Calendar, 
-  Sparkles, ArrowRight, Zap, RefreshCw, BarChart2
+  Sparkles, ArrowRight, Zap, RefreshCw, BarChart2, LogOut
 } from 'lucide-react';
 import { 
   ResponsiveContainer, PieChart, Pie, Cell, 
@@ -21,7 +21,15 @@ interface DashboardStats {
   stats: { name: string; value: number }[];
 }
 
-export default function Dashboard({ onNavigate, userId }: { onNavigate: (page: string, data?: any) => void; userId?: string }) {
+export default function Dashboard({ 
+  onNavigate, 
+  onLogout,
+  userId 
+}: { 
+  onNavigate: (page: string, data?: any) => void; 
+  onLogout?: () => void;
+  userId?: string 
+}) {
   const [data, setData] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -152,12 +160,24 @@ export default function Dashboard({ onNavigate, userId }: { onNavigate: (page: s
               Your overall rating increased by <span className="text-emerald-400 font-semibold">+18</span> this week. Keep code submitting to sharpen your graph & DP weaknesses!
             </p>
           </div>
-          <button 
-            onClick={() => onNavigate('questions')} 
-            className="flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-brand-violet to-brand-indigo hover:from-brand-purple hover:to-brand-violet text-white font-semibold transition-all duration-300 transform hover:scale-[1.02] shadow-lg shadow-brand-violet/25 w-fit"
-          >
-            Solve Questions <ArrowRight className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-3 flex-wrap">
+            <button 
+              onClick={() => onNavigate('questions')} 
+              className="flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-brand-violet to-brand-indigo hover:from-brand-purple hover:to-brand-violet text-white font-semibold transition-all duration-300 transform hover:scale-[1.02] shadow-lg shadow-brand-violet/25 w-fit"
+            >
+              Solve Questions <ArrowRight className="h-4 w-4" />
+            </button>
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="flex items-center gap-2 px-4 py-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-400 hover:text-rose-300 font-bold transition-all duration-300 shadow-sm w-fit"
+                title="Log Out of CodeAI"
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Log Out</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

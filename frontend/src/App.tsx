@@ -62,7 +62,7 @@ export default function App() {
   const renderActivePage = () => {
     switch (activePage) {
       case 'dashboard':
-        return <Dashboard onNavigate={(page) => setActivePage(page as Page)} userId={user.id} />;
+        return <Dashboard onNavigate={(page) => setActivePage(page as Page)} onLogout={handleLogout} userId={user.id} />;
       case 'questions':
         return (
           <QuestionBank 
@@ -150,7 +150,7 @@ export default function App() {
           <InstallAppButton />
         </div>
 
-        {/* PROFILE OVERVIEW CARD */}
+        {/* PROFILE OVERVIEW CARD & LOGOUT */}
         <div className="p-4 border-t border-slate-850 bg-dark-900/60 space-y-3">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -164,16 +164,16 @@ export default function App() {
                 </span>
               </div>
             </div>
-            
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-slate-800 hover:border-rose-500/30 transition flex-shrink-0 text-xs font-semibold"
-              title="Log Out of CodeAI"
-            >
-              <LogOut className="h-3.5 w-3.5" />
-              <span>Logout</span>
-            </button>
           </div>
+
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/35 text-rose-400 hover:text-rose-300 text-xs font-bold transition-all shadow-sm group"
+            title="Log Out of CodeAI"
+          >
+            <LogOut className="h-3.5 w-3.5 group-hover:-translate-x-0.5 transition-transform" />
+            <span>Log Out of CodeAI</span>
+          </button>
         </div>
 
       </aside>
