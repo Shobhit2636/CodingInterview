@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { COLORS } from './src/constants/theme';
 import { User, Problem } from './src/types';
-import { SAMPLE_PROBLEMS } from './src/services/api';
+import { SAMPLE_PROBLEMS, getCurrentUser, logoutUser } from './src/services/api';
 
 import AuthScreen from './src/screens/AuthScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
@@ -12,32 +12,57 @@ import CodeEditorScreen from './src/screens/CodeEditorScreen';
 import AIVoiceMockScreen from './src/screens/AIVoiceMockScreen';
 
 export default function App() {
-  const [user, setUser] = useState<User | null>({
-    id: 'u_1',
-    name: 'Shobhit11',
-    email: 'shobhit11@gmail.com',
-    rating: 1200,
-    points: 100,
-    solvedCount: 24,
-    streak: 3
-  });
-
+  const [user, setUser] = useState<User | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
   const [currentScreen, setCurrentScreen] = useState<'dashboard' | 'questions' | 'editor' | 'interview'>('dashboard');
   const [selectedProblem, setSelectedProblem] = useState<Problem>(SAMPLE_PROBLEMS[0]);
+
+  useEffect(() => {
+    // Check if user was already logged in previously
+    getCurrentUser().then(savedUser => {
+      if (savedUser) {
+        setUser(savedUser);
+      }
+      setIsInitializing(false);
+    }).catch(() => {
+      setIsInitializing(false);
+    });
+  }, []);
 
   const handleSelectProblem = (problem: Problem) => {
     setSelectedProblem(problem);
     setCurrentScreen('editor');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logoutUser();
     setUser(null);
+    setCurrentScreen('dashboard');
   };
+
+  if (isInitializing) {
+    return (
+      <View style={[styles.appContainer, { justifyContent: 'center', alignItems: 'center' }]}>
+        <StatusBar style="light" />
+        <View style={styles.loadingLogo}>
+          <Text style={{ fontSize: 32 }}>⚡</Text>
+        </View>
+        <Text style={{ color: COLORS.primaryLight, fontSize: 13, marginTop: 12, fontWeight: '600' }}>
+          Loading CodeAI Studio...
+        </Text>
+      </View>
+    );
+  }
 
   if (!user) {
     return (
       <View style={{ flex: 1, backgroundColor: COLORS.bgDark }}>
-        <AuthScreen onLoginSuccess={(u) => { setUser(u); setCurrentScreen('dashboard'); }} />
+        <AuthScreen
+          onLoginSuccess={(u) => {
+            setUser(u);
+            setCurrentScreen('dashboard');
+          }}
+        />
         <StatusBar style="light" />
       </View>
     );
@@ -132,6 +157,14 @@ const styles = StyleSheet.create({
   appContainer: {
     flex: 1,
     backgroundColor: COLORS.bgDark,
+  },
+  loadingLogo: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   screenWrapper: {
     flex: 1,

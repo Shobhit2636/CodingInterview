@@ -17,7 +17,7 @@ import InstallAppButton from './components/InstallAppButton';
 type Page = 'dashboard' | 'questions' | 'coding' | 'collab' | 'interview' | 'behavioral' | 'roadmap' | 'systemdesign';
 
 export default function App() {
-  // Authentication State
+ 
   const [user, setUser] = useState<AuthUser | null>(() => {
     try {
       const saved = localStorage.getItem('codeai_user');
@@ -41,24 +41,24 @@ export default function App() {
     setActivePage('dashboard');
   };
 
-  // Trigger solve coding page
+
   const handleSolveQuestion = (qId: string) => {
     setSelectedQuestionId(qId);
     setActivePage('coding');
   };
 
-  // Trigger direct mock voice interview from questions tab
+
   const handleStartAIInterview = (qId: string) => {
     setSelectedQuestionId(qId);
     setActivePage('interview');
   };
 
-  // If user is not authenticated, render Login & Sign-Up Screen
+
   if (!user) {
     return <AuthPage onLoginSuccess={handleLoginSuccess} />;
   }
 
-  // Navigations switcher
+
   const renderActivePage = () => {
     switch (activePage) {
       case 'dashboard':

@@ -9,10 +9,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  StatusBar
+  StatusBar,
+  ActivityIndicator
 } from 'react-native';
 import { COLORS, SPACING } from '../constants/theme';
-import { loginUser } from '../services/api';
+import { loginUser, signupUser } from '../services/api';
 import { User } from '../types';
 
 interface AuthScreenProps {
@@ -21,28 +22,87 @@ interface AuthScreenProps {
 
 export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   const [isLogin, setIsLogin] = useState(true);
-  const [username, setUsername] = useState('Shobhit11');
-  const [email, setEmail] = useState('shobhit11@gmail.com');
-  const [password, setPassword] = useState('123456');
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+
+  const handleTabSwitch = (loginState: boolean) => {
+    setIsLogin(loginState);
+    setErrorMsg('');
+    setSuccessMsg('');
+  };
 
   const handleSubmit = async () => {
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    const cleanUsername = username.trim();
+    const cleanEmail = email.trim();
+
+    // Validation
+    if (!cleanUsername) {
+      setErrorMsg(isLogin ? 'Please enter your username or email' : 'Please enter a username');
+      return;
+    }
+
+    if (!isLogin && !cleanEmail) {
+      setErrorMsg('Please enter your email address');
+      return;
+    }
+
+    if (!password) {
+      setErrorMsg('Please enter a password');
+      return;
+    }
+
+    if (password.length < 6) {
+      setErrorMsg('Password must be at least 6 characters');
+      return;
+    }
+
+    if (!isLogin && password !== confirmPassword) {
+      setErrorMsg('Passwords do not match. Please verify.');
+      return;
+    }
+
     setLoading(true);
+
     try {
-      const user = await loginUser(username);
-      onLoginSuccess(user);
-    } catch (e) {
-      console.error(e);
+      if (isLogin) {
+        const user = await loginUser(cleanUsername, password);
+        setSuccessMsg('Login successful! Redirecting...');
+        setTimeout(() => {
+          onLoginSuccess(user);
+        }, 500);
+      } else {
+        const user = await signupUser(cleanUsername, cleanEmail, password);
+        setSuccessMsg('Account created successfully! Welcome to CodeAI.');
+        setTimeout(() => {
+          onLoginSuccess(user);
+        }, 600);
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Authentication failed. Please check details.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleDemoLogin = async () => {
+    setErrorMsg('');
     setLoading(true);
-    const user = await loginUser('Shobhit11');
-    onLoginSuccess(user);
-    setLoading(false);
+    try {
+      const user = await loginUser('Shobhit11', 'password123');
+      onLoginSuccess(user);
+    } catch {
+      setErrorMsg('Could not log in as demo user.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -80,27 +140,43 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
             <View style={styles.tabRow}>
               <TouchableOpacity
                 style={[styles.tab, isLogin && styles.tabActive]}
-                onPress={() => setIsLogin(true)}
+                onPress={() => handleTabSwitch(true)}
               >
                 <Text style={[styles.tabText, isLogin && styles.tabTextActive]}>Sign In</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.tab, !isLogin && styles.tabActive]}
-                onPress={() => setIsLogin(false)}
+                onPress={() => handleTabSwitch(false)}
               >
                 <Text style={[styles.tabText, !isLogin && styles.tabTextActive]}>Create Account</Text>
               </TouchableOpacity>
             </View>
 
+            {/* Error Banner */}
+            {errorMsg ? (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorIcon}>⚠️</Text>
+                <Text style={styles.errorText}>{errorMsg}</Text>
+              </View>
+            ) : null}
+
+            {/* Success Banner */}
+            {successMsg ? (
+              <View style={styles.successBanner}>
+                <Text style={styles.successIcon}>✅</Text>
+                <Text style={styles.successText}>{successMsg}</Text>
+              </View>
+            ) : null}
+
             {/* Inputs */}
             <View style={styles.form}>
-              <Text style={styles.inputLabel}>USERNAME</Text>
+              <Text style={styles.inputLabel}>{isLogin ? 'EMAIL OR USERNAME' : 'USERNAME'}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="e.g. Shobhit11"
+                placeholder={isLogin ? 'e.g. shobhit11 or shobhit11@gmail.com' : 'Choose a username (e.g. Shobhit11)'}
                 placeholderTextColor={COLORS.textSubtle}
                 value={username}
-                onChangeText={setUsername}
+                onChangeText={(t) => { setUsername(t); setErrorMsg(''); }}
                 autoCapitalize="none"
               />
 
@@ -112,7 +188,7 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                     placeholder="you@example.com"
                     placeholderTextColor={COLORS.textSubtle}
                     value={email}
-                    onChangeText={setEmail}
+                    onChangeText={(t) => { setEmail(t); setErrorMsg(''); }}
                     keyboardType="email-address"
                     autoCapitalize="none"
                   />
@@ -125,9 +201,23 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                 placeholder="Min 6 characters"
                 placeholderTextColor={COLORS.textSubtle}
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(t) => { setPassword(t); setErrorMsg(''); }}
                 secureTextEntry
               />
+
+              {!isLogin && (
+                <>
+                  <Text style={styles.inputLabel}>CONFIRM PASSWORD</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Repeat your password"
+                    placeholderTextColor={COLORS.textSubtle}
+                    value={confirmPassword}
+                    onChangeText={(t) => { setConfirmPassword(t); setErrorMsg(''); }}
+                    secureTextEntry
+                  />
+                </>
+              )}
 
               {/* Submit Button */}
               <TouchableOpacity
@@ -135,9 +225,13 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                 onPress={handleSubmit}
                 disabled={loading}
               >
-                <Text style={styles.submitBtnText}>
-                  {loading ? 'Please wait...' : isLogin ? 'SIGN IN →' : 'CREATE ACCOUNT →'}
-                </Text>
+                {loading ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.submitBtnText}>
+                    {isLogin ? 'SIGN IN →' : 'CREATE ACCOUNT →'}
+                  </Text>
+                )}
               </TouchableOpacity>
 
               {/* Divider */}
@@ -148,7 +242,11 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
               </View>
 
               {/* Demo Button */}
-              <TouchableOpacity style={styles.demoBtn} onPress={handleDemoLogin}>
+              <TouchableOpacity
+                style={styles.demoBtn}
+                onPress={handleDemoLogin}
+                disabled={loading}
+              >
                 <Text style={styles.demoBtnText}>⚡ Continue as Demo User (Shobhit11)</Text>
               </TouchableOpacity>
             </View>
@@ -248,7 +346,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.bgDark,
     borderRadius: 12,
     padding: 3,
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
   },
   tab: {
     flex: 1,
@@ -267,6 +365,46 @@ const styles = StyleSheet.create({
   tabTextActive: {
     color: '#fff',
     fontWeight: '700',
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.4)',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: SPACING.sm,
+    gap: 8,
+  },
+  errorIcon: {
+    fontSize: 14,
+  },
+  errorText: {
+    color: '#f87171',
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
+  },
+  successBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: SPACING.sm,
+    gap: 8,
+  },
+  successIcon: {
+    fontSize: 14,
+  },
+  successText: {
+    color: '#34d399',
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
   },
   form: {
     gap: SPACING.sm,

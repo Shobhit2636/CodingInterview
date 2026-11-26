@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>CodeAI | AI-Powered Coding Interview Platform</title>
 
-    <!-- PWA & Mobile Web App Meta -->
+  
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#7c3aed" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -24,7 +24,7 @@
   <body class="bg-dark-950 text-slate-100 font-sans selection:bg-brand-violet/30 selection:text-brand-accent overflow-x-hidden antialiased">
     <div id="root"></div>
     <script>
-      // Register PWA Service Worker with automatic update check
+     
       if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js?v=2').then((reg) => {
